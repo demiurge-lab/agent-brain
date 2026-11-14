@@ -70,6 +70,8 @@ def select_session(record: dict, source: str, day: date, config: Config) -> Sess
             if role == "user" and not record.get("owner"):   # never the owner's name for someone else's words
                 who = record["speaker"]
                 speaker = who.get("userName") or (who.get("userId") and f"{who['platform']}:{who['userId']}") or "unknown speaker"
+                if config.edition == "enterprise" and who.get("userName") and who.get("userId"):   # the people pass resolves members by id
+                    speaker += f" ({who['platform']}:{who['userId']})"
             turns.append(Turn(role, text, stamp, reads, retrievals, speaker))
     turns.sort(key=lambda turn: turn.timestamp.timestamp())
     return Session(record["id"], record["speaker"]["platform"], turns)

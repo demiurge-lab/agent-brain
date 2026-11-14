@@ -118,3 +118,13 @@ def test_a_non_owner_without_a_name_is_labelled_by_id_never_as_the_owner(templat
     del record["speaker"]["userId"]
     [turn] = digest.select_session(record, "stranger.json", DAY, template_config).turns
     assert turn.speaker == "unknown speaker"
+
+
+def test_an_enterprise_digest_keeps_a_named_members_id(template_config):
+    from dataclasses import replace
+    record = harness_session("member", [message("user", "Hello there", "2026-10-20T15:00:00Z")], owner=False, user_name="Kim Lee")
+    record["speaker"]["userId"] = "k57kim"
+    [turn] = digest.select_session(record, "member.json", DAY, template_config).turns
+    assert turn.speaker == "Kim Lee"
+    [turn] = digest.select_session(record, "member.json", DAY, replace(template_config, edition="enterprise")).turns
+    assert turn.speaker == "Kim Lee (demiurge:k57kim)"

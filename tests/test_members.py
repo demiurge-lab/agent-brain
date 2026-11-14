@@ -73,3 +73,14 @@ def test_another_intellect_is_no_member_in_the_journal_or_the_access_log(vault):
     assert "boss" not in fm.read(owner)[1]
     assert "Nameless said: The launch moved to Friday" in (vault / "Conversations/2026-10-28 Noted.md").read_text()
     assert "agents/Nameless/Profile.md]] · schedule · declined" in access_log.path_for(config, "2026-10").read_text()
+
+
+def test_a_member_with_a_profile_gets_it_and_their_directions(vault):
+    config = config_for(vault, "enterprise")
+    folder = vault / config.people_dir / "Kim Lee"
+    folder.mkdir(parents=True)
+    (folder / "Profile.md").write_text("---\ntype: profile\n---\n# Kim Lee\n\n- **Slack:** `U0KIM`\n\n"
+                                       "Runs payroll.\n\n## Working together\n- 2026-11-14: bullet points, no preamble.\n")
+    text = session(config, platform="slack", user_id="U0KIM", user_name="Kim Lee")
+    assert "Runs payroll." in text and "bullet points, no preamble" in text
+    assert "Runs payroll." not in session(config, platform="slack", user_id="U0BOB", user_name="Bob")

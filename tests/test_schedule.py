@@ -460,10 +460,7 @@ def test_after_chains_from_a_timed_routine_and_round_trips(config, capsys):
 def test_default_chains_have_installed_skills_and_valid_predecessors(vault, edition):
     config = replace(Config.load(vault), edition=edition, skill_prefix="own-")
     routines = schedule.defaults(config)
-    chain = ["session-export", "attribution", "night-before", "sleep1"]
-    if edition == "personal":
-        chain.append("people")
-    chain += ["image", "night-after"]
+    chain = ["session-export", "attribution", "night-before", "sleep1", "people", "image", "night-after"]
     assert routines[chain[0]].cron
     for predecessor, name in zip(chain, chain[1:]):
         assert routines[name].after == predecessor
@@ -473,11 +470,11 @@ def test_default_chains_have_installed_skills_and_valid_predecessors(vault, edit
     for name in ("session-export", "attribution", "night-before", "night-after", "upgrade"):
         assert not routines[name].agent and routines[name].script == name.replace("session-export", "export-sessions") + ".sh"
     assert not {"sleep2", "rem", "continue", "continue-daily"} & routines.keys()
+    assert routines["people"].skills == ["own-people"]
     if edition == "personal":
-        assert routines["people"].skills == ["own-people"]
         assert routines["prime"].after == "improve"
     else:
-        assert not {"people", "prime", "morning"} & routines.keys()
+        assert not {"prime", "morning"} & routines.keys()
     schedule.save(config, routines)
     assert schedule.problems(config) == []
     assert schedule.load(config) == routines

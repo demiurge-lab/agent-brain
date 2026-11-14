@@ -27,7 +27,7 @@ def git(repo: Path, *args: str) -> str | None:
 
 
 # The night stages that serve one person, absent from an enterprise intellect.
-PERSONAL_STAGES = ("people", "prime")
+PERSONAL_STAGES = ("prime",)
 
 
 def stages(repo: Path, today: date, now: datetime, edition: str = "personal") -> dict[str, dict]:
