@@ -150,3 +150,15 @@ def test_a_held_draft_is_settled_by_its_note(config):
         assert reception.set_outcome(config, "agent/Prepared/Pace", "opened").id == late   # newest by time, not by file
         assert reception.set_outcome(config, "agent/Prepared/Pace", "used").id == late
         assert reception.set_outcome(config, "agent/Prepared/Pace", "liked").id == early   # used after the night gave up
+
+
+def test_a_held_draft_moved_to_a_draft_work_keeps_its_row_and_is_settled_by_the_work(config):
+    with vault_lock(config):
+        row = reception.record(config, "draft", "Lisbon day plan", "agent/Prepared/2026-11-10 Lisbon", at=datetime(2026, 11, 10, 9, 0))
+        moved = reception.move(config, row, "lisbon-day-plan")
+        assert (moved.id, moved.kind, moved.source, moved.at, moved.outcome) == (row, "work", "work:lisbon-day-plan", "2026-11-10 09:00", "pending")
+        assert reception.set_outcome(config, "work:lisbon-day-plan", "used").id == row
+        with pytest.raises(ValueError, match="work slug"):
+            reception.move(config, row, "Lisbon Day")
+        with pytest.raises(ValueError, match="no reception row"):
+            reception.move(config, "000000", "lisbon-day-plan")

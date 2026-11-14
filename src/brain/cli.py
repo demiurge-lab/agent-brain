@@ -1595,6 +1595,12 @@ def cmd_reception(args):
             with vault_lock(config):
                 row = reception.set_outcome(config, args.id, args.outcome)
             print(f"{row.id} {row.outcome}: {row.kind} {row.what}")
+        elif args.action == "move":
+            if not (args.id and args.outcome and args.outcome.startswith("work:")):
+                raise ValueError("move needs ID and work:<slug>")
+            with vault_lock(config):
+                row = reception.move(config, args.id, args.outcome.removeprefix("work:"))
+            print(f"{row.id} now [[{row.source}]]")
         elif args.action == "burden":
             if not (args.reviews and args.author):
                 raise ValueError("burden needs --reviews DIR and --author LOGIN")
@@ -2462,9 +2468,9 @@ def main(argv=None):
     s.set_defaults(fn=cmd_stale_tasks)
     s = sub.add_parser("reception", help="how each thing offered landed, and correction burden on the intellect's work",
                        parents=[vault])
-    s.add_argument("action", nargs="?", choices=["summary", "add", "set", "burden"], default="summary")
+    s.add_argument("action", nargs="?", choices=["summary", "add", "set", "move", "burden"], default="summary")
     s.add_argument("id", nargs="?", help="set: a row id, or the note a held draft lives in")
-    s.add_argument("outcome", nargs="?")
+    s.add_argument("outcome", nargs="?", help="set: the outcome; move: work:<slug>, the draft work a held draft became")
     s.add_argument("--kind", choices=reception.KINDS); s.add_argument("--what"); s.add_argument("--source")
     s.add_argument("--portrait", metavar="ID", help="the portrait line this offer served")
     s.add_argument("--at", metavar="'YYYY-MM-DD HH:MM'", help="add: when it was offered, for a row written after the fact")

@@ -21,7 +21,7 @@ Owner work found in the channels becomes a yours task: `brain task new "<title>"
    - **Where and with whom.** Where {human_name} is today and who they are with, with the date it was said. "At home, nothing noted" is a valid line.
    - **Today.** What they said they would do today, anything due today or tomorrow that Upcoming cannot see (a commitment in prose with no date, a recurring thing), and at most five one-line facts from what is new on the channels that bear on today. Upcoming and its Calendar block carry the dated items; never copy those lists.
    - **People this week.** At most three, one line each with its source.
-   - **Waiting for them.** Anything under `{agent_dir}/Prepared/` made in the last seven days that they have not raised, one line each, once. Leave out every draft whose `goal:` names a goal that is not active, checking `brain goals list --json` even if an earlier Primed listed it.
+   - **Waiting for them.** Every draft work made unasked in the last seven days (a draft marked `for you:` in the Library listing, `$AGENT_HOME/works/LIBRARY.md`), and anything still held under `{agent_dir}/Prepared/`, that they have not raised, one line each, once. Leave out every draft whose goal is not active, checking `brain goals list --json` even if an earlier Primed listed it.
    - **Likely to come up.** The three notes most likely needed today, each with the note to load and its state in a sentence.
    - **Nudge.** At most one: a quiet open task reached from what is hot this week, not set aside, not `yours` (the evening asks about those), and not nudged since it last went quiet ("related to what you're on, untouched since <date>: still want this?"). Goal nudges and endings belong to people.
 
