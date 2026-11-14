@@ -56,6 +56,8 @@ Everything to decide is in the Script Output above, one JSON from `brain evening
    - *Nudged with no response:* `brain goals G-n set-aside --why "No response sixty days after the nudge"`.
 
    After each ending, `brain needs-you --confirm "<plain sentence: what you ended and why; the operator can reopen it>"`.
+
+   **Goal accounts.** `accounts` lists the active goals with work last week and no account for it. For each, read `brain goals activity G-n --json --weeks 3` and write `brain goals G-n account "<2–4 plain sentences>" --week <its week>`: what was done toward the goal that week, why it served the company and what came of it. Plain, for anyone in the company, with no ids, links, paths or routine names; say what is still open when nothing came of it yet.
 <!-- /enterprise -->
 6. **What went wrong today.** `answeredToday` holds today's rows in `{agent_dir}/Answered/`: an idea or offer {human_name} declined, a draft they called not this, a loop dropped because you mishandled it. For each, ask what you would do differently next time, as a rule for that kind of work. When there is one, learn it once, in its field: `brain learn add --field <Field> --claim "<how to act next time>" --source "reflection on <T-nnn, or what happened>" --candidate`. At most one line per outcome; most need none.
 7. `brain commit -m "evening(<date>)" --push` if anything changed. The run's account gives the counts by kind.

@@ -374,11 +374,12 @@ def steer(config: Config, gid: str, operation: str, text: str, *, why: str | Non
     if account_week is not None and operation != "account":
         raise ValueError("--week goes with account")
     if operation == "account":
-        people = (os.environ.get("BRAIN_RUN", "").strip() == "routine" and
-                  (os.environ.get("BRAIN_SKILL", "").strip() in ("people", config.skill_prefix + "people") or
-                   os.environ.get("BRAIN_SPEAKER", "").strip() in ("cron:people", "cron:" + config.skill_prefix + "people")))
-        if not (_owner(config) or people):
-            raise ValueError("only the owner or the people routine may write a goal account")
+        writer = "evening" if config.edition == "enterprise" else "people"
+        routine = (os.environ.get("BRAIN_RUN", "").strip() == "routine" and
+                   (os.environ.get("BRAIN_SKILL", "").strip() in (writer, config.skill_prefix + writer) or
+                    os.environ.get("BRAIN_SPEAKER", "").strip() in ("cron:" + writer, "cron:" + config.skill_prefix + writer)))
+        if not (_owner(config) or routine):
+            raise ValueError(f"only the owner or the {writer} routine may write a goal account")
     if errors := problems(config):
         raise ValueError(errors[0])
     data, body = read(config)

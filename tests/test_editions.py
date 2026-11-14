@@ -115,7 +115,7 @@ def test_an_organisation_keeps_company_goals_its_seed_files_several_at_once(vaul
     assert "where its leadership says it is heading" in context and "G-3 — Pass the SOC 2 audit (inferred)" in context
 
 
-def test_company_goals_age_on_longer_timelines_and_the_evening_decides_them(vault):
+def test_company_goals_age_on_longer_timelines_and_the_evening_decides_them(vault, monkeypatch):
     import json
     from dataclasses import replace
     from datetime import timedelta
@@ -132,4 +132,12 @@ def test_company_goals_age_on_longer_timelines_and_the_evening_decides_them(vaul
     assert goals.aging(config, "stale") == 90 and goals.aging(replace(config, edition="personal"), "stale") == 30
     listed = json.loads(signals.evening(config))["goals"]
     assert [(entry["id"], entry["reasons"][0][:16]) for entry in listed] == [("G-2", "Past finish date")]
+    last = (today - timedelta(weeks=1)).isoformat()
+    monkeypatch.setattr(goals, "activity", lambda *_, **__: {"G-1": [{"at": last}], "G-2": [{"at": today.isoformat()}]})
+    accounts = json.loads(signals.evening(config))["accounts"]
+    assert [(entry["id"], entry["week"]) for entry in accounts] == [("G-1", goals.week(today - timedelta(weeks=1)))]
+    monkeypatch.setenv("BRAIN_RUN", "routine")
+    monkeypatch.setenv("BRAIN_SKILL", "evening")
+    goals.steer(config, "G-1", "account", "Closed two audit findings.", account_week=accounts[0]["week"])
+    assert json.loads(signals.evening(config))["accounts"] == []
     assert goals.decay(replace(config, edition="personal"), today) == ["G-1"]
