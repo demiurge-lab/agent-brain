@@ -105,6 +105,14 @@ def test_enterprise_skills_say_who_speaks_for_the_organisation_and_personal_ones
     assert all("**Who " not in skill(personal, name) for name in ("sleep1", "recall", "continue"))
 
 
+
+def test_an_organisation_files_noted_lines_lessons_and_member_directions(vault):
+    config = enterprise(vault)
+    install.skills(config)
+    sleep1, recall = skill(config, "sleep1"), skill(config, "recall")
+    assert "Noted.md` lines" in sleep1 and "brain learn add" in sleep1 and "People profile over 300 words" in sleep1
+    assert "goes to `Working together` in their profile" in recall
+
 def test_an_organisation_keeps_company_goals_its_seed_files_several_at_once(vault):
     from brain import compile_context, goals
     config = enterprise(vault)
