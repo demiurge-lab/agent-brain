@@ -1,0 +1,49 @@
+name: editions
+# A skill both editions install is one file, read through its <!-- personal --> and <!-- enterprise --> blocks. A fix
+# that lands in only one edition's text is usually tuned against that edition's evals and silently skips the other.
+# A PR that changes one edition's reading of such a skill, and not the other's, must say it means to with the
+# `one-edition` label. Shared text changes both readings, so it passes.
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+jobs:
+  both-editions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+      - name: A skill both editions read changes for both, or says why not
+        env:
+          ONE_EDITION_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'one-edition') }}
+        run: |
+          git fetch -q origin main
+          python3 - <<'EOF'
+          import os, re, subprocess, sys
+          BLOCK = re.compile(r"^<!-- (personal|enterprise) -->\n(.*?)^<!-- /\1 -->\n", re.M | re.S)   # install.EDITION_BLOCK
+          def show(ref, path):
+              out = subprocess.run(["git", "show", f"{ref}:{path}"], capture_output=True, text=True)
+              return out.stdout if out.returncode == 0 else ""
+          def read(text, edition):
+              return BLOCK.sub(lambda m: m[2] if m[1] == edition else "", text)
+          base = subprocess.run(["git", "merge-base", "origin/main", "HEAD"], capture_output=True, text=True).stdout.strip()
+          paths = subprocess.run(["git", "diff", "--name-only", base, "HEAD", "--", "src/brain/skills/*/SKILL.md"],
+                                 capture_output=True, text=True).stdout.split()
+          lopsided = []
+          for path in paths:
+              old, new = show(base, path), show("HEAD", path)
+              if not old or not new or re.search(r"^\s*editions:", new, re.M):   # new, removed, or one edition's only
+                  continue
+              changed = [e for e in ("personal", "enterprise") if read(old, e) != read(new, e)]
+              if len(changed) == 1:
+                  lopsided.append(f"{path}: only the {changed[0]} reading changed")
+          if not lopsided:
+              print("every skill both editions read changed for both, or for neither")
+          elif os.environ["ONE_EDITION_LABEL"] == "true":
+              print("one-edition label set:\n" + "\n".join(lopsided))
+          else:
+              for line in lopsided:
+                  print(f"::error::{line}. Make the change shared text, give the other edition its own version, or add the 'one-edition' label when it is right for one edition alone")
+              sys.exit(1)
+          EOF
