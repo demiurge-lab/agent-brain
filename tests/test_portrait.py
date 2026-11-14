@@ -144,7 +144,9 @@ def test_the_state_export_shows_an_organisation_its_stated_and_seen_lines_only(v
     enterprise(vault)
     write_portrait(vault, COMPANY)
     config = Config.load(vault)
-    exported = state.build(config, date(2026, 11, 6))["portrait"]
+    built = state.build(config, date(2026, 11, 6))
+    exported = built["portrait"]
+    assert built["edition"] == "enterprise"   # the app shows a company's goals to its members by this
     assert [line["id"] for line in exported] == ["a001", "a003", "a004"]
     assert all("against" not in line for line in exported)
 

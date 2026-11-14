@@ -405,7 +405,7 @@ def build(config: Config, today: date) -> dict:
     version = health.git(config.vault_path, "rev-parse", "--short", "HEAD")
     if version and health.git(config.vault_path, "--no-optional-locks", "status", "--porcelain"):
         version += "+dirty"
-    return {"schema": 3, "engine": _engine(), "version": version, "tasks": task_entries, "hubs": hubs,
+    return {"schema": 3, "engine": _engine(), "edition": config.edition, "version": version, "tasks": task_entries, "hubs": hubs,
             "goals": _goals(vault, task_entries),
             "routines": routine_entries, "ledger": recent,
             "needsYou": owner_items, "outputs": _outputs(vault),
