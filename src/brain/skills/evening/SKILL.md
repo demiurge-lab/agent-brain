@@ -48,6 +48,16 @@ Everything to decide is in the Script Output above, one JSON from `brain evening
 <!-- /personal -->
 <!-- enterprise -->
      When something is at stake for {human_name} (money, a promise they made, a date), keep it visible on its source task instead of dropping it silently.
+
+   **Goals.** `goals` lists the company goals that have aged; check `brain goals show G-n` first and decide each by its reasons:
+   - *Past finish date:* when its evidence or a newer statement from leadership shows it reached or replaced, `brain goals G-n reached --evidence "<date> · <what> · [[note]]"` or `superseded-by G-m --evidence "<dated evidence>"`; otherwise `brain needs-you --ask "<goal> was due <date>: move the date, call it reached, or let it go?"`, then `brain goals G-n asked-missed`. A missed date alone never ends it.
+   - *Flagged stale:* set it aside with `brain goals G-n set-aside --why "<judged reason>"`, or keep it with a line of new grounded evidence (`brain goals G-n evidence "<date> · <what> · [[note]]"`) when leadership still states it.
+   - *Nudge it:* `brain goals G-n nudge`, then `brain needs-you --ask "Leadership set <goal> on <date>; nothing since. Still a goal?"`.
+   - *Nudged with no response:* `brain goals G-n set-aside --why "No response sixty days after the nudge"`.
+
+   After each ending, `brain needs-you --confirm "<plain sentence: what you ended and why; the operator can reopen it>"`.
+
+   **Goal accounts.** `accounts` lists the active goals with work last week and no account for it. For each, read `brain goals activity G-n --json --weeks 3` and write `brain goals G-n account "<2–4 plain sentences>" --week <its week>`: what was done toward the goal that week, why it served the company and what came of it. Plain, for anyone in the company, with no ids, links, paths or routine names; say what is still open when nothing came of it yet.
 <!-- /enterprise -->
 6. **What went wrong today.** `answeredToday` holds today's rows in `{agent_dir}/Answered/`: an idea or offer {human_name} declined, a draft they called not this, a loop dropped because you mishandled it. For each, ask what you would do differently next time, as a rule for that kind of work. When there is one, learn it once, in its field: `brain learn add --field <Field> --claim "<how to act next time>" --source "reflection on <T-nnn, or what happened>" --candidate`. At most one line per outcome; most need none.
 7. `brain commit -m "evening(<date>)" --push` if anything changed. The run's account gives the counts by kind.
@@ -58,5 +68,6 @@ Only task state fields and Needs you. No hubs, profiles, CURRENT threads or memo
 No messages: what is decided here shows in the briefing and the app.
 <!-- /personal -->
 <!-- enterprise -->
+Company goals change only through `brain goals`, as above.
 No messages: what is decided here shows in the app.
 <!-- /enterprise -->

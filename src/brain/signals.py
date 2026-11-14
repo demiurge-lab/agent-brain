@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from . import channel_files, fm, loops, runtime, session_tools, wake
@@ -141,4 +141,15 @@ def evening(config: Config) -> str:
         "answeredToday": [line.removeprefix("- ") for line in answered.read_text(encoding="utf-8").splitlines()
                           if line.startswith(f"- {today.isoformat()} ")] if answered.is_file() else [],
     }
+    if config.edition == "enterprise":   # a personal vault's goals age in the people pass
+        from . import goals
+        signal["goals"] = [{"id": goal.gid, "title": goal.title, "reasons": reasons} for goal in goals.active(config)
+                           if (reasons := goals.due_reasons(config, goal) + goals.quiet_reasons(config, goal))]
+        # A company's goals are accounted for once a week, for the week just ended, and only when work went toward them.
+        last = goals.week(today - timedelta(weeks=1))
+        worked = goals.activity(config, weeks=3, vault=vault)
+        signal["accounts"] = [{"id": goal.gid, "title": goal.title, "week": last} for goal in goals.active(config)
+                              if goals.account(goal, today)["lastWeek"]["text"] is None
+                              and any(item["at"] and goals.week(date.fromisoformat(item["at"][:10])) == last
+                                      for item in worked.get(goal.gid, []))]
     return json.dumps(signal, ensure_ascii=False, indent=2) if any(signal.values()) else ""

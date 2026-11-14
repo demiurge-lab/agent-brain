@@ -27,7 +27,13 @@ ACCOUNT = re.compile(r"^- \*\*Account \((\d{4}-W\d{2})\):\*\* (.+)$", re.M)
 WORDS = re.compile(r'^- \*\*In their words:\*\* "(.*)" \((\d{4}-\d{2}-\d{2}|unknown)\)$', re.M)
 EVIDENCE = re.compile(r"^- \*\*Evidence:\*\* (\d{4}-\d{2}-\d{2}) · (.+)$", re.M)
 ENDING = re.compile(r"^- \*\*(?:Reached|Superseded|Set-Aside):\*\* (\d{4}-\d{2}-\d{2}) — ", re.M)
+# Days before a goal ages, personal then enterprise: a company's goals run by quarters, a person's by weeks.
+AGING = {"stale": (30, 90), "reask": (14, 30), "nudge": (60, 180), "owner_edit": (14, 30), "after_nudge": (30, 60)}
 TEMPLATE = "# Goals\n\n## Aspirations\n\n## Active goals\n\n## Adopted practices\n\n## Set aside\n"
+
+
+def aging(config: Config, what: str) -> int:
+    return AGING[what][config.edition == "enterprise"]
 
 
 def day(value: str) -> str:
@@ -205,12 +211,26 @@ def due_reasons(config: Config, goal: Goal) -> list[str]:
     today = config.today()
     reasons = []
     if goal.state.get("stale"):
-        reasons.append(f"No grounded evidence for 30 days; flagged stale {goal.state['stale']}")
+        reasons.append(f"No grounded evidence for {aging(config, 'stale')} days; flagged stale {goal.state['stale']}")
     if (goal.state.get("kind") == "reach" and goal.state.get("by", today.isoformat()) < today.isoformat()
             and (not goal.state.get("missed_asked")
-                 or (today - date.fromisoformat(goal.state["missed_asked"])).days >= 14)):
+                 or (today - date.fromisoformat(goal.state["missed_asked"])).days >= aging(config, "reask"))):
         reasons.append(f"Past finish date {goal.state['by']}")
     return reasons
+
+
+def quiet_reasons(config: Config, goal: Goal) -> list[str]:
+    """A said goal nobody has touched: due a nudge, or set aside once a nudge went unanswered."""
+    if goal.origin != "said":
+        return []
+    today = config.today()
+    if nudged := goal.state.get("nudged"):
+        waited = (today - date.fromisoformat(nudged)).days
+        return [f"Nudged {nudged} with no response; set it aside"] if waited >= aging(config, "after_nudge") else []
+    touched = max([value for value in (goal.said_at, goal.state.get("updated")) if value] + [ev["at"] for ev in goal.evidence],
+                  default=today.isoformat())
+    quiet = (today - date.fromisoformat(touched)).days
+    return [f"No evidence since {touched}; nudge it"] if quiet >= aging(config, "nudge") else []
 
 
 def require_active(config: Config, gid: str) -> str:
@@ -354,11 +374,12 @@ def steer(config: Config, gid: str, operation: str, text: str, *, why: str | Non
     if account_week is not None and operation != "account":
         raise ValueError("--week goes with account")
     if operation == "account":
-        people = (os.environ.get("BRAIN_RUN", "").strip() == "routine" and
-                  (os.environ.get("BRAIN_SKILL", "").strip() in ("people", config.skill_prefix + "people") or
-                   os.environ.get("BRAIN_SPEAKER", "").strip() in ("cron:people", "cron:" + config.skill_prefix + "people")))
-        if not (_owner(config) or people):
-            raise ValueError("only the owner or the people routine may write a goal account")
+        writer = "evening" if config.edition == "enterprise" else "people"
+        routine = (os.environ.get("BRAIN_RUN", "").strip() == "routine" and
+                   (os.environ.get("BRAIN_SKILL", "").strip() in (writer, config.skill_prefix + writer) or
+                    os.environ.get("BRAIN_SPEAKER", "").strip() in ("cron:" + writer, "cron:" + config.skill_prefix + writer)))
+        if not (_owner(config) or routine):
+            raise ValueError(f"only the owner or the {writer} routine may write a goal account")
     if errors := problems(config):
         raise ValueError(errors[0])
     data, body = read(config)
@@ -587,7 +608,7 @@ def _add_evidence(config: Config, goal: Goal, text: str) -> None:
     goal.body += "\n" + "\n".join(lines[:10]) + "\n"
     goal.state.pop("nudged", None)
     match = EVIDENCE.fullmatch(text)
-    if (goal.state.get("stale") and (config.today() - date.fromisoformat(match[1])).days < 30
+    if (goal.state.get("stale") and (config.today() - date.fromisoformat(match[1])).days < aging(config, "stale")
             and _grounded(config, match[1], match[2])):
         goal.state.pop("stale", None)
 
@@ -609,8 +630,8 @@ def change(config: Config, gid: str, operation: str, *, text: str | None = None,
         raise ValueError("only an active goal can be superseded; reopen it first")
     if operation in ("reached", "superseded-by", "set-aside") and not _owner(config, from_app):
         updated = goal.state.get("owner_updated")
-        if updated and (config.today() - date.fromisoformat(updated)).days < 14:
-            raise ValueError("the person reopened or edited this goal within 14 days; leave it active")
+        if updated and (config.today() - date.fromisoformat(updated)).days < aging(config, "owner_edit"):
+            raise ValueError(f"the person reopened or edited this goal within {aging(config, 'owner_edit')} days; leave it active")
         if sum(any(match[1] == today for match in ENDING.finditer(entry.body))
                for entry in load(config) + archived(config)) >= 3:
             raise ValueError("three goals already have an ending dated today; leave further endings for another night")
@@ -666,8 +687,8 @@ def change(config: Config, gid: str, operation: str, *, text: str | None = None,
         return task or goal
     elif operation == "nudge":
         touched = max([value for value in (goal.said_at, goal.state.get("updated")) if value] + [ev["at"] for ev in goal.evidence], default=today)
-        if goal.state["state"] != "active" or goal.state.get("nudged") or (config.today() - date.fromisoformat(touched)).days < 60:
-            raise ValueError("nudge needs an active goal with no evidence for 60 days, not already nudged")
+        if goal.state["state"] != "active" or goal.state.get("nudged") or (config.today() - date.fromisoformat(touched)).days < aging(config, "nudge"):
+            raise ValueError(f"nudge needs an active goal with no evidence for {aging(config, 'nudge')} days, not already nudged")
         goal.state["nudged"] = today
     elif operation == "asked-missed":
         if goal.state["state"] != "active" or goal.state["kind"] != "reach" or goal.state.get("by", today) >= today:
@@ -830,7 +851,7 @@ def decay(config: Config, today: date, report: list[str] | None = None, *, vault
             latest = max((ev["at"] for ev in goal.evidence if _grounded(
                 config, ev["at"], ev["text"] + (f" [[{ev['link']}]]" if ev["link"] else ""), vault)),
                 default=goal.said_at or today.isoformat())
-            stale = (today - date.fromisoformat(latest)).days >= 30
+            stale = (today - date.fromisoformat(latest)).days >= aging(config, "stale")
             if stale != bool(goal.state.get("stale")):
                 if stale:
                     goal.state["stale"] = today.isoformat()
@@ -841,7 +862,8 @@ def decay(config: Config, today: date, report: list[str] | None = None, *, vault
                 if not stale:
                     report.append(f"goal: {goal.gid} stale mark cleared by grounded evidence")
             if stale:
-                report.append(f"goal: {goal.gid} stale: no grounded evidence for 30 days; people to judge")
+                report.append(f"goal: {goal.gid} stale: no grounded evidence for {aging(config, 'stale')} days; "
+                              + ("evening" if config.edition == "enterprise" else "people") + " to judge")
         except Exception as error:
             report.append(f"goal: {goal.gid} decay skipped: {error}")
     return changed

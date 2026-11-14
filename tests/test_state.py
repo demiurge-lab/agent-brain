@@ -13,7 +13,7 @@ from conftest import git, snapshot
 
 
 TODAY = date(2026, 10, 28)
-KEYS = ["schema", "engine", "version", "tasks", "hubs", "goals", "routines", "ledger", "needsYou", "outputs", "prepared", "loops", "loopsClosed"]
+KEYS = ["schema", "engine", "edition", "version", "tasks", "hubs", "goals", "routines", "ledger", "needsYou", "outputs", "prepared", "loops", "loopsClosed"]
 
 
 def note(root, source, body="", **data):
@@ -259,7 +259,7 @@ def test_cli_json_order_format_and_summary(work, capsys, monkeypatch):
     cli.main(["state", "--vault", str(work.vault_path)])
     summary = capsys.readouterr().out
     assert summary.count("\n") == 1
-    assert summary == " · ".join(f"{len(parsed[key])} {key}" for key in KEYS[3:]) + "\n"
+    assert summary == " · ".join(f"{len(parsed[key])} {key}" for key in KEYS[4:]) + "\n"
 
 
 def test_empty_vault_and_missing_installed_metadata(tmp_path, monkeypatch):
@@ -275,7 +275,7 @@ def test_empty_vault_and_missing_installed_metadata(tmp_path, monkeypatch):
     assert result["engine"] == "unknown" and result["version"] is None
     assert result["idea"] is None
     assert result["responsibilities"] == []
-    assert all(result[key] == [] for key in KEYS[3:])
+    assert all(result[key] == [] for key in KEYS[4:])
 
 
 def test_configured_layout_and_records_name_matching(tmp_path):
