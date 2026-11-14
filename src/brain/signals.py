@@ -141,4 +141,8 @@ def evening(config: Config) -> str:
         "answeredToday": [line.removeprefix("- ") for line in answered.read_text(encoding="utf-8").splitlines()
                           if line.startswith(f"- {today.isoformat()} ")] if answered.is_file() else [],
     }
+    if config.edition == "enterprise":   # a personal vault's goals age in the people pass
+        from . import goals
+        signal["goals"] = [{"id": goal.gid, "title": goal.title, "reasons": reasons} for goal in goals.active(config)
+                           if (reasons := goals.due_reasons(config, goal) + goals.quiet_reasons(config, goal))]
     return json.dumps(signal, ensure_ascii=False, indent=2) if any(signal.values()) else ""

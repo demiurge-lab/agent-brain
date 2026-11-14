@@ -113,3 +113,23 @@ def test_an_organisation_keeps_company_goals_its_seed_files_several_at_once(vaul
     assert [goal.gid for goal in goals.active(config)] == ["G-1", "G-2", "G-3"]
     context = compile_context.build(Vault(config.vault_path))
     assert "where its leadership says it is heading" in context and "G-3 — Pass the SOC 2 audit (inferred)" in context
+
+
+def test_company_goals_age_on_longer_timelines_and_the_evening_decides_them(vault):
+    import json
+    from dataclasses import replace
+    from datetime import timedelta
+    from brain import goals, signals
+    config = enterprise(vault)
+    (vault / "Company").mkdir()
+    (vault / "Company" / "Company.md").write_text("---\nkind: hub\n---\n# Company\n")
+    today = config.today()
+    said = (today - timedelta(days=45)).isoformat()
+    goals.new(config, "Pass SOC 2", "Pass SOC 2", inferred=True, evidence=[f"{said} · all-hands · [[Company/Company]]"])
+    goals.new(config, "Ship the audit trail", "Ship it", reach=True, by=(today - timedelta(days=1)).isoformat(),
+              inferred=True, evidence=[f"{today.isoformat()} · OKRs · [[Company/Company]]"])
+    assert goals.decay(config, today) == []
+    assert goals.aging(config, "stale") == 90 and goals.aging(replace(config, edition="personal"), "stale") == 30
+    listed = json.loads(signals.evening(config))["goals"]
+    assert [(entry["id"], entry["reasons"][0][:16]) for entry in listed] == [("G-2", "Past finish date")]
+    assert goals.decay(replace(config, edition="personal"), today) == ["G-1"]
