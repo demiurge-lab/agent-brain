@@ -107,6 +107,18 @@ def set_outcome(config: Config, ident: str, outcome: str) -> Row:
     return new
 
 
+def move(config: Config, ident: str, slug: str) -> Row:
+    """A held draft that became a draft work keeps its row, now the work's: its offer date and outcome carry over."""
+    if not re.fullmatch(r"[a-z0-9-]+", slug):
+        raise ValueError("move takes a work slug, [a-z0-9-]+")
+    path, row = next((pair for pair in rows(config) if pair[1].id == ident), (None, None))
+    if row is None:
+        raise ValueError(f"no reception row {ident}")
+    new = Row(**{**row.__dict__, "kind": "work", "source": f"work:{slug}"})
+    _rewrite(path, row, new)
+    return new
+
+
 def answered(config: Config, kind: str, what: str, outcome: str) -> Row | None:
     """The owner answered an idea or an ask: settle its newest open row with the same text, if it has one."""
     needle = _plain(what)[:200].casefold()

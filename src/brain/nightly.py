@@ -314,7 +314,7 @@ def ask_library(config: Config, today: date, report: list[str], records_path: Pa
     if home is None:
         return False
     eligible = [work for work in works.parse(works.library() or "")
-                if work.status == "draft" and work.editable and work.opened == "never"
+                if work.status == "draft" and work.editable and work.opened == "never" and not work.offered
                 and work.created is not None and (today - work.created).days >= 7]
     if not eligible:
         return False

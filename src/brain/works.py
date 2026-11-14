@@ -65,6 +65,7 @@ class Work:
     created: date | None
     opened: date | Literal["never"] | None
     goal: str | None = None
+    offered: bool = False  # made unasked for For you: it lapses unopened rather than being asked about
 
 
 def _date(field: str, prefix: str) -> date | None:
@@ -90,7 +91,8 @@ def parse(body: str) -> list[Work]:
         created = _date(fields[6], "created ") if len(fields) > 6 else None
         opened = ("never" if fields[7] == "opened never" else _date(fields[7], "opened ")) if len(fields) > 7 else None
         goal = next((value.removeprefix("goal ") for value in fields[8:] if value.startswith("goal ")), None)
-        out.append(Work(slug, title, form, status, access == "editable", created, opened, goal))
+        offered = any(value.startswith("for you: ") for value in fields[8:])
+        out.append(Work(slug, title, form, status, access == "editable", created, opened, goal, offered))
     return out
 
 

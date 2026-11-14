@@ -61,6 +61,7 @@ def draft_row(slug="trip-plan", title="Trip plan", *, status="draft", access="ed
     (LISTING.replace("active", "draft"), False),
     (draft_row().replace("created 2026-10-29", "created 2026-02-30"), False),
     (draft_row().replace("opened never", "opened unknown"), False),
+    (draft_row().replace("opened never", "opened never | for you: A day plan for the trip"), False),
 ])
 def test_nightly_library_ask_eligibility_and_exact_text(vault, library_home, row, eligible):
     write_library(library_home, row)
