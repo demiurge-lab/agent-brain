@@ -6,18 +6,23 @@ metadata:
   runtime:
     tags: [memory, people]
     category: brain
-    editions: [personal]
     context: [current, upcoming, directory]
 ---
 # People review
 
+<!-- personal -->
 Maintain source-backed profiles and {agent_name}'s own revisable impressions of the people in {human_name}'s life, {human_name} first.
+<!-- /personal -->
+<!-- enterprise -->
+Keep a source-backed profile of each member who speaks with {agent_name}, so the next conversation with them starts from what you already know: who they are, what they work on, what they have asked for and how they want to work with you.
+<!-- /enterprise -->
 
 ## Procedure
 <!-- personal -->
 Run `brain portrait coverage --json` for the seed decision only. Read `seeds` in `brain state --json`: an account with a non-null `task` already has an open seed task (its source is `seed:<address>`), including a handed-off onboarding pass. Only for an account in `unreadBackfill` with no open seed task, load `{prefix}seed` and run it scoped to that account before the rest of this pass.
 <!-- /personal -->
 
+<!-- personal -->
 1. Read the People profiles and histories Sleep 1 wrote, then yesterday's digest in `Conversations/Digests/`. Every user turn labelled with something other than {human_name}'s name is another person speaking: a platform handle or id, or a display name. A handle can be renamed; the stable id on the profile's line for that platform is what identifies them. List the distinct speakers, with what each said and asked and how they responded to the agent.
 2. Resolve each speaker to a profile under `{people_dir}/` by the platform id recorded on the profile; for a Demiurge id no profile carries, run `brain people who <id>` and, when listed, create the profile from the template in the canonical folder for the directory name (`{people_dir}/<Name>/Profile.md`, or `{agents_dir}/<Name>/Profile.md` for an intellect), with its id line, never a handle-named stub. A speaker with no matching profile or directory entry is an unknown person: create `{people_dir}/<display name or id>/Profile.md` from the template with the id as its only confirmed identity, the date, and what they said, marked "identity unconfirmed by {human_name}" (the engine treats such a profile as a stranger until {human_name} confirms who it is; then remove the mark), and add an `ask` to CURRENT's `## Needs you`: "a new person messaged me; who is this?" Never merge an unknown id into an existing profile on a name alone.
 3. Keep what Sleep 1 already filed from this digest. Do not rewrite the same facts or duplicate a day's History entry. Add only new identity, reception or mailbox evidence and revise the impression when it changes. For each person spoken with whose entry is still missing, write the day's dated entry to `{people_dir}/<Name>/History.md` (newest first: date, channel, what they said and asked, how it went, filed as their claims); a thing coming up for them that they named (a trip, a visit, a result, a date) is written with its date spelled out (`November 2`), so the Upcoming scan carries it into context the week before and update `Profile.md` in place: what they told the agent, filed as their claim with the date; what they asked for and how it was answered (the access log has each request); and the impression. Impressions are the agent's own and say so: how they talk, what they care about, what they expect from the agent, with confidence and counterevidence. Revise an earlier impression when yesterday contradicted it; do not just append. A Profile stays under 300 words and holds only what is stable (identifiers, relationship, impression, what they care about, standing facts, disclosure notes); dated material belongs in History, and a profile past the budget is split on this pass.
@@ -32,6 +37,14 @@ Run `brain portrait coverage --json` for the seed decision only. Read `seeds` in
 
 6. Each profile's title is the person's name once you know it; their ids stay as platform lines (`- **Slack:** \`U…\``, `- **Demiurge:** \`k57…\``). A profile you cannot resolve says so in its title ("unresolved Demiurge speaker"), never matching a rule by accident. The engine logs requests and raises the declines no rule covers; do not add them to Needs you yourself. Keep `{people_dir}/README.md` a current list of profiles, including any Sleep 1 created for someone only mentioned.
 7. Overwrite `$AGENT_HOME/records/people/state.json` with the reviewed window and the ids handled, so a rerun does not count a speaker twice. `brain commit -m "people(<date>)" --push`.
+<!-- /personal -->
+<!-- enterprise -->
+1. Read the People profiles and histories Sleep 1 wrote, then yesterday's digest in `Conversations/Digests/`. Every user turn is a member speaking, labelled with a platform handle or id, or a display name. A handle can be renamed; the stable id on the profile's line for that platform is what identifies them. List the distinct speakers, with what each said and asked.
+2. Resolve each speaker to a profile under `{people_dir}/` by the platform id recorded on the profile. For a Demiurge id no profile carries, run `brain people who <id>`, which lists every member, and create the profile from the template at `{people_dir}/<Name>/Profile.md` with its id line, never a handle-named stub; the directory confirms who they are, so it carries no "identity unconfirmed" mark. When Sleep 1 already made that folder from mentions, it carries no id line and the directory lists no one else of that name, it is the same member, named as the directory names them: add the id line and remove the mark. When it carries another id, it is someone else of that name: use `{people_dir}/<Name> (<handle>)/Profile.md`. A speaker the directory does not list stays unresolved; never merge an id into a profile on a name alone.
+3. Keep what Sleep 1 already filed from this digest; add only what is new. For each member spoken with whose entry is still missing, write the day's dated entry to `{people_dir}/<Name>/History.md` (newest first: date, channel, what they asked and how it went). Update `Profile.md` in place, under 300 words, with what is stable: their ids, role and team, what they work on, what they ask {agent_name} for, and **Working together**: their own dated directions on how you reply to and work with them (style, length, channel, what to leave alone), merged with a duplicate. What they say about themselves or their work is their claim, dated. How to do a kind of work belongs in a Learned field instead (`brain learn add --field <Field> --claim "<how to act>" --source "<their words>" [--rule]`). Write no impressions or judgments of a colleague: a profile says how to work with them, nothing more.
+4. Each profile's title is the member's name once you know it; their ids stay as platform lines (`- **Slack:** \`U…\``, `- **Demiurge:** \`k57…\``). A profile you cannot resolve says so in its title ("unresolved Demiurge speaker"). Keep `{people_dir}/README.md` a current list of profiles, including any Sleep 1 created for someone only mentioned.
+5. Overwrite `$AGENT_HOME/records/people/state.json` with the reviewed window and the ids handled, so a rerun does not count a speaker twice. `brain commit -m "people(<date>)" --push`.
+<!-- /enterprise -->
 
 ## Boundaries
 External services read-only; send nothing. No fixed character labels, no sensitive-trait or mental-health inference, no secrets, no raw message dumps. Preserve {human_name}'s edits.

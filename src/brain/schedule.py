@@ -233,14 +233,15 @@ def save(config: Config, routines: dict[str, Routine]) -> None:
 
 def defaults(config: Config) -> dict[str, Routine]:
     """The routines an intellect of this edition starts with: the night's memory passes and the work routines for every
-    edition, and the owner's day (people, prime, the morning briefing) for a personal one. Times are the owner's zone."""
+    edition, and the owner's day (prime, the morning briefing) for a personal one. Times are the owner's zone."""
     p = config.skill_prefix
     routines = {
         "session-export": Routine(cron="30 0 * * *", prompt="", script="export-sessions.sh", agent=False),
         "attribution": Routine(after="session-export", prompt="", script="attribution.sh", agent=False),
         "night-before": Routine(after="attribution", prompt="", script="night-before.sh", agent=False),
         "sleep1": Routine(after="night-before", skills=[f"{p}sleep1"], prompt="Run Sleep 1 for yesterday."),
-        "image": Routine(after="people" if config.edition == "personal" else "sleep1",
+        "people": Routine(after="sleep1", skills=[f"{p}people"]),
+        "image": Routine(after="people",
                          skills=[f"{p}image", f"{p}portrait"], prompt="Run the image pass."),
         "night-after": Routine(after="image", prompt="", script="night-after.sh", agent=False),
         "context-refresh": Routine(cron="15 * * * *", prompt="", script="refresh.sh", agent=False),
@@ -254,7 +255,6 @@ def defaults(config: Config) -> dict[str, Routine]:
     }
     if config.edition == "personal":
         routines |= {
-            "people": Routine(after="sleep1", skills=[f"{p}people"]),
             "prime": Routine(after="improve", skills=[f"{p}prime"]),
             "morning": Routine(cron="0 8 * * *", skills=[f"{p}morning"], prompt="Run the morning briefing.", deliver="demiurge"),
         }

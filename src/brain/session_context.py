@@ -172,7 +172,7 @@ def lookup_rule(config: Config) -> str:
             f"has not recorded yet. " + relay_rule(config))
 
 
-def member_context(config: Config, platform: str, user_ids: tuple[str, ...], user_name: str, operator: bool) -> str:
+def member_context(vault: Vault, config: Config, platform: str, user_ids: tuple[str, ...], user_name: str, operator: bool) -> str:
     org = config.human_name
     who = user_name or (f"{platform}:{user_ids[0]}" if user_ids else "the operator")
     person = f"{platform}:{user_ids[-1]}" if user_ids and platform not in ("", "cli") else None
@@ -183,6 +183,10 @@ def member_context(config: Config, platform: str, user_ids: tuple[str, ...], use
         lines.append(f"Work they hand you is theirs ({person}): its questions and milestones go to them.")
     if operator:
         lines.append(f"As the operator they may change how you are set up (`{config.skill_prefix}setup`); other members may not.")
+    profiles = matching_profiles(vault, config, user_ids, platform) if user_ids else []
+    if len(profiles) == 1:
+        lines.append(f"\nTheir profile, with how they want to work with you ({config.link(profiles[0].rel)}):\n\n"
+                     + truncate_words(profiles[0].body, PROFILE_WORD_LIMIT))
     return "\n".join(lines)
 
 
@@ -353,7 +357,7 @@ def build(vault: Vault, config: Config, *, platform: str = "", user_id: str = ""
     who = role(vault, config, platform, user_ids)
     identity = f"{platform or 'platform unknown'} {user_id or user_id_alt or 'id unavailable'}"
     if who == "member" or who == "owner" and config.edition == "enterprise":
-        return with_notice(member_context(config, platform, user_ids, user_name, who == "owner"), config)
+        return with_notice(member_context(vault, config, platform, user_ids, user_name, who == "owner"), config)
     if who == "owner":
         return with_notice("\n\n".join(part for part in (f"This session is with {config.human_name}, the owner.",
                                                           owner_messages(config), owner_card(vault, config)) if part), config)

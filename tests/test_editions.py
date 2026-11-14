@@ -26,10 +26,13 @@ def test_enterprise_installs_the_work_without_the_owners_day_and_removes_what_it
     assert "<!--" not in skill(personal, "recall") and "Talking to your colleagues" not in skill(personal, "recall")
     config = enterprise(vault)
     install.skills(config)
-    for gone in ("morning", "people", "prime"):
+    for gone in ("morning", "prime"):
         assert skill(config, gone) is None
-    for kept in ("continue", "watch", "evening", "explore", "improve", "sleep1", "recall", "setup"):
+    for kept in ("continue", "watch", "evening", "explore", "improve", "sleep1", "people", "recall", "setup"):
         assert skill(config, kept)
+    people = skill(config, "people")
+    assert "brain people who" in people and "revisable impressions" not in people and "**Goals.**" not in people
+    assert "<!--" not in people
     recall = skill(config, "recall")
     assert "## Talking to your colleagues" in recall and "Disclosure.md" not in recall
     assert "where its leadership says it is heading" in recall and "people pass's alone" not in recall
@@ -51,7 +54,7 @@ def test_an_enterprise_context_leaves_out_primed_unless_the_vault_chose_it(vault
 def test_enterprise_health_and_validation_do_not_expect_one_persons_stages_or_profile(vault):
     config = enterprise(vault)
     stages = health.stages(config.repo, date(2026, 11, 6), config.now(), config.edition)
-    assert "people" not in stages and "prime" not in stages and "sleep1" in stages
+    assert "prime" not in stages and {"sleep1", "people"} <= stages.keys()
     assert validate.owner_profile(Vault(config.vault_path)) == []
 
 
@@ -62,9 +65,9 @@ def test_schedule_init_adds_the_editions_routines_and_never_touches_one_already_
     cli.main(["schedule", "init", "--vault", str(vault)])
     assert "added" in capsys.readouterr().out
     routines = schedule.load(config)
-    assert {"evening", "sleep1", "attribution"} <= set(routines)
+    assert {"evening", "sleep1", "people", "attribution"} <= set(routines)
     assert not {"continue", "continue-daily"} & set(routines)
-    assert not {"morning", "people", "prime"} & set(routines)
+    assert not {"morning", "prime"} & set(routines)
     assert routines["watch"].cron == "0 9 * * 1-5"
     cli.main(["schedule", "init", "--vault", str(vault)])
     assert "already scheduled" in capsys.readouterr().out
@@ -81,12 +84,12 @@ def test_schedule_init_removes_another_editions_routines_and_rechains_what_follo
                  ("sleep2", "--cron", "0 4 * * *", "--skills", "brain-sleep2")):
         cli.main(["schedule", "set", *args, "--vault", str(vault)])
     capsys.readouterr()
-    assert len(schedule.problems(config)) == 3
+    assert len(schedule.problems(config)) == 2
     cli.main(["schedule", "init", "--vault", str(vault)])
-    assert "removed morning, people, sleep2" in capsys.readouterr().out
+    assert "removed morning, sleep2" in capsys.readouterr().out
     routines = schedule.load(config)
-    assert not {"morning", "people", "sleep2"} & set(routines)
-    assert routines["image"].after == "sleep1"
+    assert not {"morning", "sleep2"} & set(routines)
+    assert routines["image"].after == "people" and routines["people"].after == "sleep1"
     assert schedule.problems(config) == []
 
 
