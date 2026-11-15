@@ -113,6 +113,14 @@ def test_an_organisation_files_noted_lines_lessons_and_member_directions(vault):
     assert "Noted.md` lines" in sleep1 and "brain learn add" in sleep1 and "People profile over 300 words" in sleep1
     assert "goes to `Working together` in their profile" in recall
 
+def test_an_organisations_people_pass_files_goals_leadership_states_not_members_wishes(vault):
+    config = enterprise(vault)
+    install.skills(config)
+    people = skill(config, "people")
+    assert "Company goals, nightly." in people and "--inferred" in people and "How it decides" in people
+    assert "A member's request, wish or view of where the company should go is not a goal" in people
+    assert "Infer goals, nightly." not in people
+
 def test_an_organisation_keeps_company_goals_its_seed_files_several_at_once(vault):
     from brain import compile_context, goals
     config = enterprise(vault)
