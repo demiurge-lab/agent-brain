@@ -1,6 +1,6 @@
 ---
 name: {prefix}write
-description: Write to the vault — tasks and handoffs, asks, loops, ideas, corrections, goals, works and channels
+description: In a conversation, how to write to the vault (tasks and handoffs, asks, loops, ideas, corrections, goals, works, channels); a routine's own skill already has what it writes
 version: 1.0.0
 metadata:
   runtime:
