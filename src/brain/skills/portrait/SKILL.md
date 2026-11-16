@@ -55,7 +55,7 @@ A routine action that says nothing about what the organisation values (holds wee
 Lines sit under one of six headings: `After`, `Cares about`, `Taste`, `How they decide` (an organisation's may say `How it decides`), `Energy`, `Not`. `Taste` is what they like as a person; how they want a kind of work done is a Learned lesson (`brain learn add`), never a portrait line.
 <!-- /personal -->
 <!-- enterprise -->
-Lines sit under one of six headings: `After`, `Cares about`, `Taste`, `How it decides`, `Energy`, `Not`.
+Lines sit under one of six headings: `After`, `Cares about`, `Taste`, `How it decides`, `Energy`, `Not`. `Taste` is what the organisation likes in what it makes; how it wants a kind of work done is a Learned lesson (`brain learn add`), never a portrait line.
 <!-- /enterprise -->
 No ` · ` inside the text.
 <!-- personal -->
