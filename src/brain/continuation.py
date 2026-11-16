@@ -359,7 +359,31 @@ def stages_text(earlier: list[dict]) -> str | None:
     return "\n".join(lines)
 
 
-def instructions(config: Config, task: tasks.Task, earlier: list[dict] | None = None) -> str | None:
+SET_ASIDE_LINE = re.compile(r"^[ \t]*-[ \t]+\*\*Reviewed:\*\*[ \t]*(\d{4}-\d{2}-\d{2})[ \t]*[—-][ \t]*set aside:[ \t]*(.*?)[ \t]*$", re.M)
+
+
+def taken_off(config: Config, task: tasks.Task, entries: list[tasks.Task]) -> str | None:
+    """The owner's work for this task that was dropped or set aside, with why, so the worker leaves it out of Next and
+    never asks for it again (2026-11-11: a login card the owner had been told to ignore came back the next day, because
+    the task it served still listed it as theirs to do)."""
+    lines = []
+    for child in entries:
+        if child.from_task != task.tid or child.task_state not in ("cancelled", "set_aside"):
+            continue
+        if child.task_state == "cancelled":
+            day, why = tasks.closing(child)
+        else:
+            found = SET_ASIDE_LINE.findall(child.body)
+            day, why = found[-1] if found else (None, None)
+        lines.append(f"- {child.tid} {child.title}" + (f" ({day})" if day else "") + (f": {why}" if why else ""))
+    if not lines:
+        return None
+    return (f"Taken off {config.human_name}'s plate for this task. Leave these out of Next, asks and cards, and don't "
+            f"ask for them again unless {config.human_name} brings them back:\n" + "\n".join(lines[-5:]))
+
+
+def instructions(config: Config, task: tasks.Task, earlier: list[dict] | None = None,
+                 entries: list[tasks.Task] | None = None) -> str | None:
     checkpoint = checkpoint_text(task.tid)
     row = _progress(config).get(task.tid, {})
     close = row.get("close_out")
@@ -372,7 +396,10 @@ def instructions(config: Config, task: tasks.Task, earlier: list[dict] | None = 
         parts.append(prefix)
     if row.get("notice"):
         parts.append(f"When the last chunk was counted: {row['notice']}.")
-    if block := stages_text(stages(config, task) if earlier is None else earlier):
+    entries = tasks.all_tasks(config) if entries is None else entries
+    if block := taken_off(config, task, entries):
+        parts.append(block)
+    if block := stages_text(stages(config, task, entries) if earlier is None else earlier):
         parts.append(block)
     if checkpoint:
         parts.append(checkpoint)

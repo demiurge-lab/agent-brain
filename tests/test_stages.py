@@ -278,3 +278,28 @@ def test_history_atomic_failure_preserves_existing_file(stages_config, monkeypat
         works.append_history("result", "T-001", "First", TODAY, "evidence", "delivered", None)
     assert path.read_text() == "# History\n\nPrevious entry\n"
     assert not list(folder.glob(".*.tmp"))
+
+
+def test_continue_names_owner_work_taken_off_the_plate(stages_config, capsys):
+    config = stages_config
+
+    def child(title):
+        with vault_lock(config):
+            return tasks.new_task(config, title, f'"{title.lower()}"', state="yours", from_task=parent.tid)
+
+    with vault_lock(config):
+        parent = tasks.new_task(config, "Private listings site", '"build the listings site"', values={"delivers": "a tested site"})
+        tasks.hand_off(config, parent.tid, TODAY, "Home")
+    login = child("Choose your site login")
+    cli(config, capsys, "task", login.tid, "drop", "--why", "test with disposable accounts instead")
+    card = child("Add the map key")
+    with vault_lock(config):
+        tasks.set_aside(config, card.tid, TODAY, "dismissed by the owner in their app")
+    kept = child("Pick a color scheme")
+    text = cli(config, capsys, "continue", parent.tid)
+    assert (f"Taken off Human's plate for this task. Leave these out of Next, asks and cards, and don't ask for "
+            f"them again unless Human brings them back:\n"
+            f"- {login.tid} Choose your site login (2026-11-06): test with disposable accounts instead\n"
+            f"- {card.tid} Add the map key (2026-11-06): dismissed by the owner in their app") in text
+    assert kept.title not in text
+    assert json.loads(cli(config, capsys, "continue", parent.tid, "--json"))["checkpoint"].startswith("Taken off")

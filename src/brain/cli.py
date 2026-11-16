@@ -1516,7 +1516,7 @@ def cmd_continue(args):
                            "handedOff": task.handoff[0], "report": task.handoff[1], "work": task.work,
                            "after": task.after, "stages": earlier,
                            "delivers": task.delivers, "next": fm.field(task.body, "Next", "Next action"),
-                           "lastChunk": worked.get(task.tid), "checkpoint": continuation.instructions(args.config, task, earlier),
+                           "lastChunk": worked.get(task.tid), "checkpoint": continuation.instructions(args.config, task, earlier, stage_entries),
                            "chunksToday": chunks.get(task.tid, 0), "budget": limit,
                            "budgetLeft": None if limit is None else max(0, limit - chunks.get(task.tid, 0)),
                            "status": continuation.status(args.config, task, chunks.get(task.tid, 0), limit, task.tid in due_now),
