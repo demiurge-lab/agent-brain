@@ -22,20 +22,21 @@ def skill(config, name):
 def test_enterprise_installs_the_work_without_the_owners_day_and_removes_what_it_had(vault):
     personal = Config.load(vault)
     install.skills(personal)
-    assert skill(personal, "morning") and "## Goals" in skill(personal, "recall")
+    assert skill(personal, "morning") and "## Goals" in skill(personal, "write") and "## Goals" not in skill(personal, "recall")
     assert "<!--" not in skill(personal, "recall") and "Talking to your colleagues" not in skill(personal, "recall")
     config = enterprise(vault)
     install.skills(config)
     for gone in ("morning", "prime"):
         assert skill(config, gone) is None
-    for kept in ("continue", "watch", "evening", "explore", "improve", "sleep1", "people", "recall", "setup"):
+    for kept in ("continue", "watch", "evening", "explore", "improve", "sleep1", "people", "recall", "write", "setup"):
         assert skill(config, kept)
     people = skill(config, "people")
     assert "brain people who" in people and "revisable impressions" not in people and "**Goals.**" not in people
     assert "<!--" not in people
     recall = skill(config, "recall")
     assert "## Talking to your colleagues" in recall and "Disclosure.md" not in recall
-    assert "where its leadership says it is heading" in recall and "people pass's alone" not in recall
+    write = skill(config, "write")
+    assert "where its leadership says it is heading" in write and "people pass's alone" not in write and "<!--" not in write
     assert "## Grants" not in skill(config, "setup") and "*People:*" not in skill(config, "explore")
     assert "<!--" not in recall
 
@@ -109,9 +110,9 @@ def test_enterprise_skills_say_who_speaks_for_the_organisation_and_personal_ones
 def test_an_organisation_files_noted_lines_lessons_and_member_directions(vault):
     config = enterprise(vault)
     install.skills(config)
-    sleep1, recall = skill(config, "sleep1"), skill(config, "recall")
+    sleep1, write = skill(config, "sleep1"), skill(config, "write")
     assert "Noted.md` lines" in sleep1 and "brain learn add" in sleep1 and "People profile over 300 words" in sleep1
-    assert "goes to `Working together` in their profile" in recall
+    assert "goes to `Working together` in their profile" in write
 
 def test_an_organisations_people_pass_files_goals_leadership_states_not_members_wishes(vault):
     config = enterprise(vault)
