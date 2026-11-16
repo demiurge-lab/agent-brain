@@ -30,10 +30,12 @@ def validate_owner_item(text: str, detail: str = "", *, kind: str) -> None:
             raise ValueError(f"{label} contains an internal id; name the subject in the owner's words")
         if "[[" in value:
             raise ValueError(f"{label} contains a wikilink; use plain words and put the reference in --source")
-        # Vault folders are capitalised (People/Mira); lowercase "either/or" or "pick-up/drop-off" is prose.
-        if re.search(r"\.md\b|(?<!\S)(?:\.{1,2}|~)?/[\w.-]|[\w.-]+/[\w.-]+/[\w.-]|[\w.-]/[^\W\d_a-z]", value):
+        # Vault folders are capitalised (People/Mira); lowercase "either/or" or "pick-up/drop-off" is prose, and so
+        # are a date (11/20/2026), a web address (example.com/sale/boots) and initials (A/B, CI/CD).
+        prose = re.sub(r"\b\d{1,4}/\d{1,2}/\d{1,4}\b|\b[\w-]+\.(?!md\b)[a-z]{2,}/\S*|\b[A-Z]{1,4}/[A-Z]{1,4}\b", " ", value)
+        if re.search(r"\.md\b|(?<!\S)(?:\.{1,2}|~)?/[\w.-]|[\w.-]+/[\w.-]+/[\w.-]|[\w.-]/[^\W\d_a-z]", prose):
             raise ValueError(f"{label} contains a vault path; use plain words and put the reference in --source")
-        if re.search(r"\bbrain\s+", value, re.I):
+        if re.search(r"\b[Bb]rain\s+[a-z]", value):   # a command's name is lowercase; "a brain MRI" is not one
             raise ValueError(f"{label} contains a brain command; say what happens for the owner")
         if len(value.split()) > cap:
             raise ValueError(f"{label} is {len(value.split())} words; shorten it to at most {cap}")

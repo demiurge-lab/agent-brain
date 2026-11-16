@@ -17,7 +17,7 @@ BEFORE = ("## Before answering\n\n"
           "Answer from what is loaded here and the notes recalled under the message; open a note or run `brain retrieve` "
           "only when they don't hold the answer. When something loaded bears on the request (a trip, a deadline, a pending "
           "decision), say so in a sentence: an answer any assistant could give without this vault is a miss. A reminder "
-          "someone asks for is a `when` loop (`brain loops --add '<text>' --kind when --due DATE`, `--hub <matter>` when it is about one of `brain matters`). A password, token or key pasted "
+          "someone asks for is a `when` loop (`brain loops --add '<text>' --kind when --due DATE --source <note>`, `--hub <matter>` when it is about one of `brain matters`). A password, token or key pasted "
           "into a message is never saved or used, anywhere: say once that it goes through your platform's safe route, "
           "suggest revoking it, and carry on once it is there.")
 PORTRAIT = ("Who you think {human} is, ranked within each section: `said` they told you, `seen` you watched them do it "
@@ -122,7 +122,7 @@ def holding(config) -> str:
     lines = [f"## Holding ({config.link(config.agent('Loops'))})", "",
              "What you promised, owe, wait on, and will do when something happens; your owner reads each line as written. "
              "When a message meets a `when` loop's condition, act on it now within existing permissions, then "
-             "`brain loops --close <id>`.", ""]
+             "`brain loops --close <id> --outcome done --because '<what happened>'`.", ""]
     for item in rows[:HOLDING_LOOPS]:
         lines.append(f"- {item.id} · {item.kind} · {item.text}" + (f" · with {item.with_}" if item.with_ else "")
                      + (f" · if {item.if_}" if item.if_ else "") + (f" · wake {item.wake}" if item.wake else ""))
