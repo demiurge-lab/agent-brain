@@ -22,7 +22,7 @@ Everything to decide is in the Script Output above, one JSON from `brain evening
 1. **Quiet tasks.** `staleTasks`. Decide each one yourself:
    - `cancelled` when the evidence says it no longer applies: superseded by a later decision, done another way, an event or opportunity that has passed, or {human_name} said to drop it. An overdue obligation (a bill, a promise, a filing) has not stopped applying.
    - `set_aside` when it has only gone quiet and nothing is at stake in waiting: no money, no promise to someone else, no live deadline, nothing {human_name} called important. Reversible; set it back when it comes up again.
-   - an ask (recall's Needs you rules) only when something is at stake and only {human_name} can decide it.
+   - an ask (`brain needs-you --ask "<question>" --why "<what a yes or a no would do>"`, one decision per ask) only when something is at stake and only {human_name} can decide it.
    - a `yours` task, {human_name}'s own work, quiet for two weeks: never dropped or set aside by you. One ask, sourced to the task: "Still on your plate: <title>. Still working on it, done, or drop it?" Their answer decides it (still on: leave it `yours`; done: completed; drop: cancelled), and the Reviewed line restarts its two weeks.
    - left alone when it waits on someone else or on a date still ahead.
    Record each decision with `brain task T-nnn set --reviewed "<set aside | dropped | asked>: <why, in one clause>"` (with `--state set_aside` to set one aside, or `brain task T-nnn drop --why …` to drop it).
@@ -37,7 +37,7 @@ Everything to decide is in the Script Output above, one JSON from `brain evening
    Not checkable, or still not done: leave it.
 4. **What validate names.** `needsYouProblems`. Fix each:
    - a bullet about the brain itself (a migration, a setup or engine change, a skill): resolve it, with a dated Sleep Log line saying what it recorded;
-   - a task waiting on {human_name} with no linked Needs you ask, or a question over its cap: write its question and why as recall says. A proposed improvement keeps its Ask and Why lines.
+   - a task waiting on {human_name} with no linked Needs you ask, or a question over its cap: write its question and why (`brain needs-you --ask "<question>" --why "<what a yes or a no would do>"`, one decision per ask). A proposed improvement keeps its Ask and Why lines.
 5. **Stuck loops.** `staleLoops` lists loops two days or more past due: watch has acted on or nudged each one and nothing moved. None stays open past tonight; decide each:
    - done, when the evidence shows it happened: `brain loops --close <id> --outcome done --because "<what shows it>"`;
    - a task, when it is work rather than a reply or a relay: find or write the task with the loop's words, hand it off if it is yours to do, then close the loop `--outcome dropped --because "carried by T-nnn"`;
