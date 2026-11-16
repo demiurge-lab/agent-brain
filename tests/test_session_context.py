@@ -401,6 +401,34 @@ def test_an_answering_session_searches_its_own_work_down_to_the_passage(people_v
     assert "has not allowed" in session_context.search_own_work(vault, config, "Dallas gust", platform="slack", user_ids=("U_BOB",))
 
 
+def test_any_intellect_draws_on_the_know_how_note_and_only_a_setup_grant_reaches_the_rest(people_vault):
+    root = people_vault.root
+    _own_work_vault(people_vault)
+    fm.write(root / "agent/Know-how.md", {}, "# Know-how\n\n## Reading gust forecasts\n\n"
+             "- A blank gust field in the hourly feed meant missing data; the station page had the value. · 2026-11-10 · firsthand\n")
+    (root / "agents/Nameless").mkdir(parents=True)
+    fm.write(root / "agents/Nameless/Profile.md", {"kind": "profile"},
+             "# Nameless\n\n- **Owner:** [[memory/people/Bob/Profile|Bob]]\n- **Demiurge:** `k57nameless`\n")
+    vault, config = Vault(root), people_vault.config
+
+    def search(platform, user_id):
+        return session_context.search_own_work(vault, config, "blank gust field", platform=platform, user_ids=(user_id,))
+
+    def prefetched(platform, user_id):
+        return session_context.prefetch(vault, config, "blank gust field forecasts", owner=False, seen=set(), answering=True,
+                                        platform=platform, user_ids=(user_id,))["text"]
+
+    intellect = search("demiurge", "k57nameless")
+    assert "## agent/Know-how.md > Reading gust forecasts" in intellect and "the station page had the value" in intellect
+    assert "Weather runs" not in intellect and "Blank gust fields are unknown" not in intellect
+    assert "agent/Know-how.md" in prefetched("demiurge", "k57nameless")
+    assert "Weather screen.md" not in prefetched("demiurge", "k57nameless")
+    granted = search("slack", "U_ALICE")
+    assert "the station page had the value" in granted and "agent/Experiments/Weather runs.md" in granted
+    assert "has not allowed" in search("slack", "U_BOB") and prefetched("slack", "U_BOB") == ""
+    assert "has not allowed" in search("demiurge", "k57nobody")
+
+
 def test_an_intellect_sees_the_open_work_that_names_it_with_its_hub(people_vault):
     root = people_vault.root
     for folder in ("agents/Nameless", "agent"):
