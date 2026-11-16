@@ -75,7 +75,7 @@ Indented under it:
 <!-- /enterprise -->
 - `  - against: <counterevidence>` where what is said and what is done differ; it never leaves the vault.
 
-**Bases.** `said`: {human_name} said it about themselves, in their framing. `seen`: a pattern seen at least twice, on separate occasions, stated as behaviour (what they do, decide, ask for, return to, push back on); something done again and again is `seen`, not a guess, even when you cannot see why. `guess`: an inference from one signal, with its test.
+**Bases.** `said`: {human_name} said it about themselves, in their framing. `seen`: a pattern seen at least twice, on separate occasions, stated as behaviour (what they do, decide, ask for, return to, push back on); something done again and again is `seen`, not a guess, even when you cannot see why. `guess`: an inference from one signal, with its test; accepting an offer or an introduction is one signal, not saying it.
 <!-- personal -->
 Health, mood, relationships, money and other sensitive subjects are only ever `said`, in their own words.
 <!-- /personal -->
@@ -123,7 +123,7 @@ At most eight lines a section, ranked. A facet holds at most forty lines and 1,5
 A guess whose offers came back `used` or `liked` twice in `brain reception summary` becomes `seen`; one {human_name} confirmed becomes `said`. A guess whose offer was declined, or that they corrected, moves to History; when they corrected it, their words become a `Not` line. A guess with no new evidence for thirty days moves to History (`brain validate` names it); one sourced to a Seeds note counts its thirty days from that note's date, so a first portrait read from a year of mail keeps its older guesses for {human_name} to answer, as does an After line whose goal was reached, superseded, set aside, refused or converted.
 
 ## From evidence
-What the sources found waits in evidence, outside the vault. `brain portrait due --json` lists the facets with rows newer than their last pass, the most telling evidence first: what {human_name} said, did and wrote outweighs a pile of notices (an entry marked new is an area no facet covers yet). Take them in that order. For each one taken, read `brain portrait evidence <facet> --json`, the rows routed to it since its last pass, and add, revise, promote or retire lines in that facet only. Every pattern the rows show becomes a line or strengthens one; only rows that show nothing about them (a one-off notice) may be passed over.
+What the sources found waits in evidence, outside the vault. `brain portrait due --json` lists the facets with rows newer than their last pass, the most telling evidence first: what {human_name} said, did and wrote outweighs a pile of notices (an entry marked new is an area no facet covers yet). Take them in that order. For each one taken, read `brain portrait evidence <facet> --json`, the rows routed to it since its last pass, and add, revise, promote or retire lines in that facet only. Every pattern the rows show becomes a line or strengthens one; only rows that show nothing about them (a one-off notice) may be passed over. Requests about one project of theirs on several days show what they are after: the project's aim is an After line, written or strengthened, while how they want each piece made is a Learned lesson.
 <!-- personal -->
 A pattern across rows is `seen` (texts the same two friends most days; four restaurant bookings a month); one row is a `guess` with a test.
 <!-- /personal -->
