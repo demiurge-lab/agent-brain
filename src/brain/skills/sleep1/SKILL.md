@@ -33,7 +33,7 @@ The night's main job. Yesterday becomes long-term memory: new facts are written 
    A user turn is a colleague speaking for {human_name}; attribute it to the member identified by the session, and treat quoted or forwarded third-party claims as claims, never as {human_name}'s own words.
 <!-- /enterprise -->
    List every candidate: a fact about a person, project or {human_name}; a decision; a preference; a correction; a promise or deadline; a question left open; a thing {human_name} said they wanted; something that was run, fetched, installed or checked, with what it showed. Note the time and who said it.
-4. **Sort each candidate against its owning note** (hub, profile, task, Loops, CURRENT), reading that note first:
+4. **Sort each candidate against its owning note** (hub, profile, task, Loops, CURRENT), reading that note first. Write what is true, plainly: one line per item in the present tense, with its date and a link to its source. What {human_name} tells you about their own life, plans and people is fact ("In Denver for the conference, March 3 to 6", never "said they intended to fly to Denver; travel unverified"), and a plan whose day has passed happened unless something says it did not. A caveat only when a decision turns on it, in a few words ("not booked yet"); never a list of what was not checked.
    - already stated: nothing; the note earned a use;
    - {human_name}'s own correction, or primary evidence: supersede in place with dated provenance, keeping the old text under a "superseded by" line. Their own statement about their own facts or decisions is enough, and their latest one wins over anything an earlier note, routine or you wrote;
 <!-- personal -->
@@ -46,13 +46,13 @@ The night's main job. Yesterday becomes long-term memory: new facts are written 
    - a technique that was run and seen to work or fail, by you or by another intellect that says it ran it (a route past a block, a check that proved something, a failure and its cause): a bullet in `{agent_dir}/Know-how.md` (created with the standard frontmatter if missing) under `## <kind of task>`, as `- <lesson> · learned YYYY-MM-DD · firsthand` or `from another intellect`, merged with a duplicate and superseded by a later contrary result. Any intellect can search this note without {human_name}'s say, so write each lesson for the kind of task: every URL, command and path as a template (`<volume>`, `<post_id>`, `{owner}/{repo}`), never the case, post, record, repository, host or file that was used, because which one was used says what someone was working on. Nothing about {human_name} or anyone else, nothing that identifies their projects, accounts or systems, nothing about how you are set up, no advice that was not tried, and nothing stronger than what was seen; when unsure, leave it out. How {human_name} wants a kind of work done is a Learned lesson, not this;
    - unverified conflict with a third-party claim: keep both, dated, side by side;
    - a fact from one conversation that bears on another conversation's work: at most one question in that conversation, never a gate on work {human_name} already authorized there;
-   - new fact with an owning note: add it there, in prose, with date and source;
+   - new fact with an owning note: add it there, in prose, with date and source link;
    - new topic with no owning note: create `{vault}/<Topic>.md` with the standard frontmatter, `kind: hub`, and today as its first use; link it from the nearest hub;
 <!-- personal -->
    - a person: update the profile if it exists; if not, create `{people_dir}/<Name>/Profile.md` from the template with what was said about them, attributed and dated, marked "identity unconfirmed by {human_name}", and link it from `{people_dir}/README.md`;
 <!-- /personal -->
    - a promise: a loop whose text is owner-visible Holding, what you'll do for whom in their words, addressed to {human_name} when it is for them; condition in `--if`, date in `--due`, task in `--task`, person in `--with`, matter in `--hub`; standing rules belong in `Working together`, never loop text; a deadline nobody has to act on yet: a dated CURRENT item (one that is {human_name}'s to do is a `yours` task, and one you will act on is a `when` loop, never both); work: a task sourced to {human_name}'s words;
-   - uncertain: write the likeliest reading, marked as your inference with its source, and move on; an ask (recall's Needs you rules) only when it is a decision only {human_name} can make.
+   - uncertain: write the likeliest reading as the fact, with "likely" and its source, and move on; an ask (recall's Needs you rules) only when it is a decision only {human_name} can make.
 5. **What they said about themselves.** Each thing {human_name} said in conversation about who they are, what they do, like, want or are working toward becomes one evidence row for the image pass, which turns rows into portrait lines (said rows weigh most, so they lead what is due). Write them as JSON lines, one per thing, and run `brain evidence import --source conversation < <that file>`: `{"date": "<the digest day>", "verb": "said", "fact": "<in their framing, short>", "whose": "own", "hints": ["<the portrait facet it is about>"], "pointer": "conversation:<the digest day>"}`.
 <!-- personal -->
    Health, mood and relationships only when they said it outright.
@@ -60,6 +60,7 @@ The night's main job. Yesterday becomes long-term memory: new facts are written 
    Never what others said about them, and never your own reading of them: that is the image pass's to judge.
 6. **Tidy what grew.** For every note you touched, and for any hub over 1,500 words:
    - fold dated entries older than two weeks into the prose of their section, keeping each fact and its date, dropping the diary form;
+   - rewrite hedged lines plainly: drop "remains unverified", "not readiness", "inferred" and lists of what was not checked, keeping a caveat only when a decision turns on it;
    - a section over 400 words gets a two-sentence summary at its top;
    - a People profile over 300 words: dated entries move to the person's `History.md`, the Profile keeps one sentence per fact and the History link;
    - move closed questions out of "open questions";

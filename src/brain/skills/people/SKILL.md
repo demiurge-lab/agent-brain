@@ -11,10 +11,10 @@ metadata:
 # People review
 
 <!-- personal -->
-Maintain source-backed profiles and {agent_name}'s own revisable impressions of the people in {human_name}'s life, {human_name} first.
+Maintain source-backed profiles and {agent_name}'s own revisable impressions of the people in {human_name}'s life, {human_name} first. Write what is true, plainly: one line per item in the present tense, with its date and a link to its source. What {human_name} tells you about their own life, plans and people is fact ("In Denver for the conference, March 3 to 6", never "said they intended to fly to Denver; travel unverified"), and a plan whose day has passed happened unless something says it did not. A caveat only when a decision turns on it, in a few words ("not booked yet"); never a list of what was not checked.
 <!-- /personal -->
 <!-- enterprise -->
-Keep a source-backed profile of each member who speaks with {agent_name}, so the next conversation with them starts from what you already know: who they are, what they work on, what they have asked for and how they want to work with you. Then catch any company goal its leadership stated yesterday, as the image routine keeps the portrait current.
+Keep a source-backed profile of each member who speaks with {agent_name}, so the next conversation with them starts from what you already know: who they are, what they work on, what they have asked for and how they want to work with you. Then catch any company goal its leadership stated yesterday, as the image routine keeps the portrait current. Write what is true, plainly: one line per item in the present tense, with its date and a link to its source. What a member tells you about their own work is fact, and a plan whose day has passed happened unless something says it did not. A caveat only when a decision turns on it, in a few words; never a list of what was not checked.
 <!-- /enterprise -->
 
 ## Procedure
