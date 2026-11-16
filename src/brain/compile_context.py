@@ -74,7 +74,7 @@ def build(vault: Vault, only: tuple[str, ...] | None = None, *, app_changes: boo
         elif name == "upcoming":
             sections.append(upcoming(vault))
         elif name == "directory":
-            sections.append(directory(vault))
+            sections.append(directory(vault, tasks_loaded=named["tasks"] in sources))
         elif name == "library":
             if block := library():
                 sections.append(block)
@@ -188,9 +188,10 @@ def mentioned(m: re.Match, today: date) -> date | None:
         return None
 
 
-def directory(vault: Vault) -> str:
-    """Most active notes with index lines, then names of everything the vault knows."""
-    hubs, people, agents, reflections = [], [], [], []
+def directory(vault: Vault, tasks_loaded: bool = False) -> str:
+    """Most active notes with index lines, then names of everything the vault knows. Open tasks the Tasks section
+    already carries are not named again."""
+    hubs, people, agents = [], [], []
     for rel, note in sorted(vault.notes.items()):
         kind = vault.kind_for(rel)
         if note.data.get("kind") in ("orientation", "log"):
@@ -199,13 +200,14 @@ def directory(vault: Vault) -> str:
             agents.append(rel.split("/")[-2].replace("_", " "))
         elif kind == "profile":
             people.append(rel.split("/")[-2].replace("_", " "))
-        elif kind == "reflection":
-            reflections.append(note.path.stem)
         elif kind == "hub":
             hubs.append(rel[:-3])
     registered, archived = load_tasks(vault.config)
-    tasks = [f"{t.tid} {t.title}" for t in registered + archived if t.state and is_open(t)]
+    tasks = [f"{t.tid} {t.title}" for t in (archived if tasks_loaded else registered + archived) if t.state and is_open(t)]
     selected, _, _ = index.hot_selection(vault, vault.config.context.hot_words)
+    # Registries, rules and pointer stubs load elsewhere or say nothing; the list is for topics.
+    selected = [n for n in selected if n.data.get("kind") != "orientation" and n.path.name != "README.md"
+                and not index.index_line(n).startswith("See RESPONSIBILITY")]
     lines = ["## Directory: what the vault knows", ""]
     if selected:
         lines += ["Most active, with what each holds:", ""]
@@ -214,9 +216,8 @@ def directory(vault: Vault) -> str:
     lines.append("- Hubs and topics: " + ", ".join(hubs))
     lines.append("- People with profiles: " + (", ".join(people) or "none"))
     lines.append("- Agents registered: " + (", ".join(agents) or "none"))
-    if reflections:
-        lines.append("- Reflections: " + ", ".join(reflections))
-    lines.append("- Open tasks: " + "; ".join(tasks))
+    if tasks:
+        lines.append("- Open tasks: " + "; ".join(tasks))
     return "\n".join(lines)
 
 
