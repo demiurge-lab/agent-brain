@@ -25,7 +25,7 @@ Owner work found in the channels becomes a yours task: `brain task new "<title>"
    - **Likely to come up.** The three notes most likely needed today, each with the note to load and its state in a sentence.
    - **Nudge.** At most one: a quiet open task reached from what is hot this week, not set aside, not `yours` (the evening asks about those), and not nudged since it last went quiet ("related to what you're on, untouched since <date>: still want this?"). Goal nudges and endings belong to people.
 
-4. Nothing about the machinery (audits, counts, stages, versions, commits).
+4. Nothing about the machinery (audits, counts, stages, versions, commits), and no directions on how to treat a fact ("without managing it", "not a new reminder"): state it and its date.
 5. `brain compile-context --write`, record `last_run` as above, `brain commit -m "prime(<date>)" --push <the files you changed>`.
 
 ## Boundaries
