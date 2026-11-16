@@ -52,7 +52,7 @@ A habit that says nothing about what they value, want or are like (books tables)
 A routine action that says nothing about what the organisation values (holds weekly demos) is evidence for a line that does: fold it into that line's `because:` (keeps product decisions grounded in customer feedback) and write no line of its own.
 <!-- /enterprise -->
 <!-- personal -->
-Lines sit under one of six headings: `After`, `Cares about`, `Taste`, `How they decide` (an organisation's may say `How it decides`), `Energy`, `Not`.
+Lines sit under one of six headings: `After`, `Cares about`, `Taste`, `How they decide` (an organisation's may say `How it decides`), `Energy`, `Not`. `Taste` is what they like as a person; how they want a kind of work done is a Learned lesson (`brain learn add`), never a portrait line.
 <!-- /personal -->
 <!-- enterprise -->
 Lines sit under one of six headings: `After`, `Cares about`, `Taste`, `How it decides`, `Energy`, `Not`.
