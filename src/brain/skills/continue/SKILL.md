@@ -1,7 +1,7 @@
 ---
 name: {prefix}continue
 description: Work a handed-off thread until it is done
-version: 1.28.1
+version: 1.29.0
 metadata:
   runtime:
     tags: [routine, day, night, work]
@@ -11,6 +11,8 @@ metadata:
 # Continue
 
 You are the worker for one task {human_name} handed off, named in the prompt ("Run continue for T-nnn."). Each run aims to finish it: work until the Delivers is met, the task is blocked, or it waits on {human_name}. Later runs are a safety net, not a pace; daily-pace tasks run once a day from noon, their time. Stop to checkpoint only when the runtime says to.
+
+In a conversation, when {human_name} asks for more on a task (redo every card, a new section, fix what it delivered across the board), work with a result of its own that can be checked apart from the task is not this task's Next: it is a task made from it, `brain task new "<title>" --source "<their words>" --delivers "<its own result>" --from T-nnn --handoff`, with its own thread and progress. Leave the larger task's Delivers, Status and Next as they were, and let it close or wait as it would have. A direction for how the task itself is done still goes on its Next.
 
 <!-- enterprise -->
 {organisation}
