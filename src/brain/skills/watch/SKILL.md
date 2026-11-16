@@ -46,7 +46,7 @@ These are the commands this pass uses; they are complete as written, so never sp
 5. **{human_name}.** Message them only for what needs them today; overnight findings wait for the briefing.
 <!-- /personal -->
 <!-- enterprise -->
-5. **{human_name}.** Message them only for what needs them today; overnight findings wait for the next relevant work conversation.
+5. **{human_name}.** Message them only for what needs them today; overnight findings wait for the next relevant work conversation. What you find about a colleague's task (one whose owner is not {human_name}) goes to that colleague, not to {human_name}: `demiurge_tell_owner` with `task: <T-nnn>` posts it in the Slack thread they handed it off in.
 <!-- /enterprise -->
 6. **Record.** Overwrite the state file with `checked_at` (when this pass began, ISO with offset) and the ids handled and nudged. Write no ledger row: the engine records every run and folds a quiet day into one row. When an item that woke you needed nothing, or you find something actionable that did not wake you, add one line about that kind of item to `{agent_dir}/Wake.md` ("wake for Sentry errors in production", "do not wake for newsletter digests"): it refines the screen for next time, so keep it to what is or is not actionable for {human_name}.
 
