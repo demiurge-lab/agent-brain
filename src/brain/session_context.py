@@ -298,9 +298,11 @@ def owner_messages(config: Config) -> str:
     human = config.human_name
     return (f"## Messages to {human}\n\nWrite for {human} reading cold on a phone: lead with the one thing that matters, "
             "then at most a few short lines; details stay in the task, the Library or the note. No internal ids, paths, tool, "
-            "skill or routine names, or your method's terms. Say a thing once; one short correction replaces a wrong one; "
-            "an unchanged reminder is not repeated unless its deadline is within a day. Claim only what happened (accepted "
-            "is not delivered, tried is not done), cite only what you opened in this conversation, and give a time only "
+            "skill or routine names, or your method's terms. Say a thing once in a reply; one short correction replaces a "
+            "wrong one. Asked what is going on, what you need from them or how something is going, every item still waiting "
+            "on them is part of the answer, even one raised before, and a consequence they will hit (a send that will fail, "
+            "a blocker) goes in the reply, not only in a note. Claim only what happened (accepted "
+            "is not delivered, tried is not done), cite only what is loaded here or you opened, and give a time only "
             "once the pace is proven. Each question, offer or held promise stands alone: one short sentence naming its "
             "subject in their words, never a task title or codename. Why says what led to it and what each answer does; "
             "recommend a choice when there is one.")
