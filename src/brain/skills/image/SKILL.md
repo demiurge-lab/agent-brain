@@ -33,7 +33,7 @@ Load `{prefix}portrait` with it; that skill holds the rules for every line, sket
 <!-- /personal -->
    Rewrite changed facets' sketches and the overview.
 4. **Weekly, the first run after Sunday.** Check the last weekly image entry in the Sleep Log first. Re-rank every facet's sections from the week's evidence and reception, set facet ranks by what is central now, retire stale guesses to History, fold into the line it supports any line that says nothing about who they are, fold a facet with no new evidence for a year into a neighbour keeping its lines and ids, and keep the caps. Rewrite the overview. Record which top three After lines got neither an explore run nor an offer this week and the week's hit rate, using `brain portrait coverage` and `brain reception summary`.
-5. **Confirms.** For a new or changed `seen` or `guess` line outside After, add a confirm in CURRENT's Needs you: "I've come to think you … — right?", one guess per confirm, never a list. Count portrait confirms in Needs you and History over the last seven days; add none past two. The answer is evidence on the line.
+5. **Confirms.** For a new or changed `seen` or `guess` line outside After, add a confirm with `brain needs-you --confirm "I've come to think you … — right?" --source "<the facet>"`, one guess per confirm, never a list. Count portrait confirms in Needs you and History over the last seven days; add none past two. The answer is evidence on the line.
 6. **Record.** One image entry in `{agent_dir}/Sleep Log/<month>.md`, under 100 words: facets judged, guesses promoted or retired, confirms, and the weekly line when due. `brain commit -m "image(<date>)" --push <the files you changed>`.
 
 ## Boundaries

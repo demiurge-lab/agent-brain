@@ -6,7 +6,7 @@ metadata:
   runtime:
     tags: [memory, night]
     category: brain
-    context: [start, current, triggers, directory]
+    context: [start, current, holding, directory]
 ---
 # Sleep 1: consolidate
 
