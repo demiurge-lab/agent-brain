@@ -241,14 +241,25 @@ def add_ask(config: Config, day: date, text: str, source: str | None, why: str =
     path = config.vault_path / "CURRENT.md"
     data, body = fm.read(path) if path.exists() else ({}, "")
     text = " ".join(text.replace("·", "-").split())   # the separator, inside the text, would break the bullet
+    source = (source or "").strip()
+    if source.startswith("[[") and source.endswith("]]"):
+        source = source[2:-2].split("|", 1)[0].strip()
+    if any(char in source for char in "[]\r\n"):
+        raise ValueError("--source names a note, without wikilink brackets or newlines")
     asks = needs.parse_section(body)
     tid = (task or needs.task_of(source or "")) if kind == "ask" else None
     if any(item.kind == kind and item.text.casefold() == text.casefold()
            and (not tid or item.task == tid and (not why.strip() or why.strip() == item.detail))
            and (not distinct_source or item.source == source) for item in asks):
         return True   # already asked; the first one stands until it is resolved
+    ident = needs.Item(kind, text, "current", day.isoformat(), source or "CURRENT.md").id
     if not _existing:   # Relocating a pre-existing task question preserves its words, even under newer write rules.
         items.validate_owner_item(text, why, kind=kind)
+        # The id comes from the words and the source, and a dismissed id is hidden for good: written again, the
+        # line would sit in CURRENT, count toward the cap, and never be shown.
+        if ident in needs.dismissed_ids(config):
+            raise ValueError(f"the owner already dismissed this {kind}, and a dismissed item is never raised again; "
+                             "if something has changed since, ask the new question in its own words")
     if tid:
         body = needs.replace_task_asks(config, body, tid, day)
     bullet = f"- {day.isoformat()} · {kind} · {text}" + (f" · [[{source}]]" if source else "")
@@ -264,7 +275,7 @@ def add_ask(config: Config, day: date, text: str, source: str | None, why: str =
     bullet += f"\n  - wake: {needs.wake_for(kind, day)}"
     if hub.strip():
         bullet += f"\n  - hub: {hub.strip()}"
-    bullet += f"\n  - id: {needs.Item(kind, text, 'current', day.isoformat(), source or 'CURRENT.md').id}"
+    bullet += f"\n  - id: {ident}"
     span = fm.section(body, "Needs you")
     if span is None:
         body = body.rstrip("\n") + ("\n\n" if body.strip() else "") + "## Needs you\n\n" + bullet + "\n"
@@ -274,6 +285,7 @@ def add_ask(config: Config, day: date, text: str, source: str | None, why: str =
         gap = "\n\n" if before.endswith("## Needs you") else "\n"
         body = before + gap + bullet + "\n" + ("\n" + after if after else "")
     fm.write(path, data, body)
-    from . import reception
-    reception.record(config, "ask", text, source or "CURRENT")
+    if kind == "ask":   # a confirm is accepted by silence, so it has no reception to settle
+        from . import reception
+        reception.record(config, "ask", text, source or "CURRENT")
     return True

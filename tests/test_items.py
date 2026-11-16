@@ -189,3 +189,39 @@ def test_legacy_items_remain_readable_and_exportable(config, capsys):
     assert needs.parse_section(fm.read(current)[1])[0].detail == ""
     assert loops.open_loops(config)[0].text == "Read agent/Tasks.md for TR-1."
     assert snapshot(config.vault_path) == before
+
+
+WHY = "Yes books the hotel; no leaves it open."
+
+
+@pytest.mark.parametrize("prose", [
+    "Pay the deposit by 11/20/2026?", "Run the A/B test on the pricing page?", "Fix the CI/CD pipeline first?",
+    "Order from example.com/sale/boots?", "Book the brain MRI for Tuesday?",
+])
+def test_owner_items_allow_dates_addresses_and_initials(config, prose):
+    journal.add_ask(config, TODAY, prose, "Trip", why=WHY)
+    assert [item.text for item in needs.items(config, TODAY)] == [prose]
+
+
+def test_a_bracketed_source_is_the_note_it_names(config):
+    journal.add_ask(config, TODAY, "I booked the earlier train", "[[Trip|the trip]]", kind="confirm")
+    [item] = needs.items(config, TODAY)
+    assert (item.kind, item.source) == ("confirm", "Trip")
+    with pytest.raises(ValueError, match="--source names a note"):
+        journal.add_ask(config, TODAY, "Book the hotel?", "[[Trip]] and [[Rome]]", why=WHY)
+
+
+def test_a_dismissed_question_is_refused_rather_than_hidden(config):
+    journal.add_ask(config, TODAY, "Book the hotel?", "Trip", why=WHY)
+    needs.dismiss(config, "Book the hotel?", TODAY, "no")
+    before = (config.vault_path / "CURRENT.md").read_text(encoding="utf-8")
+    with pytest.raises(ValueError, match="already dismissed"):
+        journal.add_ask(config, TODAY, "Book the hotel?", "Trip", why=WHY)
+    assert (config.vault_path / "CURRENT.md").read_text(encoding="utf-8") == before
+
+
+def test_only_an_ask_has_a_reception_to_settle(config):
+    from brain import reception
+    journal.add_ask(config, TODAY, "I booked the earlier train", "Trip", kind="confirm")
+    journal.add_ask(config, TODAY, "Book the hotel?", "Trip", why=WHY)
+    assert [row.what for _, row in reception.rows(config)] == ["Book the hotel?"]
