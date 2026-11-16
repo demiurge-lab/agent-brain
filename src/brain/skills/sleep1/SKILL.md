@@ -1,7 +1,7 @@
 ---
 name: {prefix}sleep1
 description: Nightly consolidation of yesterday into memory
-version: 2.10.0
+version: 2.11.0
 metadata:
   runtime:
     tags: [memory, night]
@@ -32,7 +32,7 @@ The night's main job. Yesterday becomes long-term memory: new facts are written 
 <!-- enterprise -->
    A user turn is a colleague speaking for {human_name}; attribute it to the member identified by the session, and treat quoted or forwarded third-party claims as claims, never as {human_name}'s own words.
 <!-- /enterprise -->
-   List every candidate: a fact about a person, project or {human_name}; a decision; a preference; a correction; a promise or deadline; a question left open; a thing {human_name} said they wanted. Note the time and who said it.
+   List every candidate: a fact about a person, project or {human_name}; a decision; a preference; a correction; a promise or deadline; a question left open; a thing {human_name} said they wanted; something that was run, fetched, installed or checked, with what it showed. Note the time and who said it.
 4. **Sort each candidate against its owning note** (hub, profile, task, Loops, CURRENT), reading that note first:
    - already stated: nothing; the note earned a use;
    - {human_name}'s own correction, or primary evidence: supersede in place with dated provenance, keeping the old text under a "superseded by" line. Their own statement about their own facts or decisions is enough, and their latest one wins over anything an earlier note, routine or you wrote;
@@ -43,6 +43,7 @@ The night's main job. Yesterday becomes long-term memory: new facts are written 
 <!-- enterprise -->
    - a lesson on how to do a kind of work (how {human_name} does it, a member's standard or correction for it): a line in its field, unless the record written after that conversation already filed it (`brain learn show "<Field>"`; the same lesson added again in other words is a duplicate, and in the same words counts as {human_name} having to repeat it), `brain learn add --field <Field> --claim "<how to act>" --source "<their words, or where you learned it>" [--rule]`, `--rule` when it is a member's own standing words; a member's direction on how to work with them is the people pass's, for their profile; the day's `Conversations/<date> Noted.md` lines, written after each conversation, are candidates like any other: file each into its owning note, then set the Noted note's `consolidated:` to today;
 <!-- /enterprise -->
+   - a technique that was run and seen to work or fail, by you or by another intellect that says it ran it (a route past a block, a check that proved something, a failure and its cause): a bullet in `{agent_dir}/Know-how.md` (created with the standard frontmatter if missing) under `## <kind of task>`, as `- <lesson> · learned YYYY-MM-DD · firsthand` or `from another intellect`, merged with a duplicate and superseded by a later contrary result. Any intellect can search this note without {human_name}'s say, so write each lesson for the kind of task: every URL, command and path as a template (`<volume>`, `<post_id>`, `{owner}/{repo}`), never the case, post, record, repository, host or file that was used, because which one was used says what someone was working on. Nothing about {human_name} or anyone else, nothing that identifies their projects, accounts or systems, nothing about how you are set up, no advice that was not tried, and nothing stronger than what was seen; when unsure, leave it out. How {human_name} wants a kind of work done is a Learned lesson, not this;
    - unverified conflict with a third-party claim: keep both, dated, side by side;
    - a fact from one conversation that bears on another conversation's work: at most one question in that conversation, never a gate on work {human_name} already authorized there;
    - new fact with an owning note: add it there, in prose, with date and source;

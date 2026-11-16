@@ -31,6 +31,7 @@ OWN_WORK_BARRED = ("Brain", "Journal", "Drafts", "Prepared")
 OWN_WORK_RULE = ("Tell how you work and what doing it taught you. Leave out what these notes say about the owner or other "
                  "people: their names, decisions and private details.")
 KNOW_HOW = ("Strategy", "Findings", "Weaknesses", "Improvements")   # of a hub: how the work is done and what it taught
+KNOW_HOW_NOTE = "Know-how.md"   # under the agent folder: tested lessons with nothing about anyone, for any intellect
 
 
 def answering(block: str, config: Config) -> bool:
@@ -439,12 +440,13 @@ def prefetch(vault: Vault, config: Config, message: str, *, owner: bool, seen: s
     """What the runtime puts before an owner's message, by brain.toml's [context] and its BRAIN_* overrides: the people
     it names (in the owner's own sessions, each once per session: `seen` are those already shown) and the vault notes
     that match it. `people` is everyone it names, for the runtime to add to `seen`. An answering session gets only the
-    intellect's own work that matches, and only when the owner lets the speaker learn how it works (`setup`)."""
+    intellect's own work that matches: all of it when the owner lets the speaker learn how it works (`setup`), its
+    know-how note for any other intellect."""
     context = config.context
     words = [word for word in re.findall(r"[^\W_]+", message.lower()) if word not in retrieve.STOPWORDS]
     if answering:
-        recall = context.prefetch and len(words) >= 2 and may_hear_how_you_work(vault, config, platform, user_ids)
-        return {"text": _own_work(vault, message) if recall else "", "people": []}
+        scope = _work_scope(vault, config, platform, user_ids) if context.prefetch and len(words) >= 2 else None
+        return {"text": _own_work(vault, message, scope) if scope else "", "people": []}
     people = _named(vault, config, message[:2000], context.people) if owner and context.people != "off" and words else {}
     parts = [_people_block(context.people, [block for name, block in people.items() if name not in seen])]
     fields = []
@@ -468,7 +470,7 @@ def prefetch(vault: Vault, config: Config, message: str, *, owner: bool, seen: s
 
 def may_hear_how_you_work(vault: Vault, config: Config, platform: str, user_ids: tuple[str, ...]) -> bool:
     """Whether the owner's disclosure table lets this speaker (an intellect through its owner) learn `setup`: how the
-    intellect works. Its know-how names people and the owner's decisions, so no grant means none of it."""
+    intellect works. Its hubs name people and the owner's decisions, so no grant means none of them."""
     if f"{config.people_dir}/Disclosure.md" not in vault.notes:
         return False
     who = role(vault, config, platform, user_ids)
@@ -490,6 +492,21 @@ def may_hear_how_you_work(vault: Vault, config: Config, platform: str, user_ids:
     return bool(setup) and setup.tell != "none"
 
 
+def _work_scope(vault: Vault, config: Config, platform: str,
+                user_ids: tuple[str, ...]) -> tuple[list[str], set[str]] | None:
+    """What of its own work an answering session may draw on: all of it, know-how note included, for a speaker the owner
+    lets learn `setup`; the know-how note alone for any other intellect, since sleep1 writes only lessons a stranger may
+    read there; nothing for anyone else."""
+    note = config.agent(KNOW_HOW_NOTE)
+    know_how = {note} if note in vault.notes else set()
+    if may_hear_how_you_work(vault, config, platform, user_ids):
+        hubs, within = _own_scope(vault)
+        return hubs, within | know_how
+    if know_how and role(vault, config, platform, user_ids) == "intellect":
+        return [], know_how
+    return None
+
+
 def _own_scope(vault: Vault) -> tuple[list[str], set[str]]:
     """The responsibility hubs, with the notes they link in the intellect's own subfolders, such as its experiments:
     never its journal, logs, drafts or prepared work, made for the owner, nor anything outside its folder."""
@@ -506,10 +523,11 @@ def _own_scope(vault: Vault) -> tuple[list[str], set[str]]:
 def search_own_work(vault: Vault, config: Config, query: str, *, platform: str = "", user_ids: tuple[str, ...] = ()) -> str:
     """The passages of the intellect's own work that best match `query`, under their headings, for an answering
     session's search: a run record deep in a long note reaches a peer, where prefetch's cut-down text cannot."""
-    if not may_hear_how_you_work(vault, config, platform, user_ids):
+    scope = _work_scope(vault, config, platform, user_ids)
+    if scope is None:
         return (f"{config.human_name} has not allowed this speaker to learn how you work, so share none of it. "
                 f"Say so, and offer to ask {config.human_name} if they want it.")
-    hubs, within = _own_scope(vault)
+    hubs, within = scope
     terms = retrieve.tokens(query)
     passages = []
     for candidate in retrieve.search(vault, query, SEARCH_NOTES, within=within):
@@ -538,8 +556,8 @@ def search_own_work(vault: Vault, config: Config, query: str, *, platform: str =
     return "\n\n".join(out)
 
 
-def _own_work(vault: Vault, message: str) -> str:
-    hubs, within = _own_scope(vault)
+def _own_work(vault: Vault, message: str, scope: tuple[list[str], set[str]]) -> str:
+    hubs, within = scope
     found = retrieve.search(vault, message[:300], min(vault.config.context.prefetch_limit, WORK_NOTES), within=within)
     if not found:
         return ""
