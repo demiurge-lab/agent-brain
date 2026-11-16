@@ -6,7 +6,7 @@ metadata:
   runtime:
     tags: [routine, day, research]
     category: brain
-    context: [start, primed, current, goals, tasks, triggers, upcoming]
+    context: [start, primed, current, goals, tasks, holding, upcoming]
 ---
 # Explore
 
