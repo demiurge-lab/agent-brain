@@ -25,7 +25,7 @@ Owner work found in the channels becomes a yours task: `brain task new "<title>"
    - **Likely to come up.** The three notes most likely needed today, each with the note to load and its state in a sentence.
    - **Nudge.** At most one: a quiet open task reached from what is hot this week, not set aside, not `yours` (the evening asks about those), and not nudged since it last went quiet ("related to what you're on, untouched since <date>: still want this?"). Goal nudges and endings belong to people.
 
-4. Nothing about the machinery (audits, counts, stages, versions, commits), and no directions on how to treat a fact ("without managing it", "not a new reminder"): state it and its date.
+4. Nothing about the machinery (audits, counts, stages, versions, commits), and no directions on how to treat a fact ("without managing it", "not a new reminder"): state it and its date. Plainly: one line per item in the present tense, with its date and a link to its source. What {human_name} tells you about their own life, plans and people is fact ("In Denver for the conference, March 3 to 6", never "said they intended to fly to Denver; travel unverified"), and a plan whose day has passed happened unless something says it did not. A caveat only when a decision turns on it, in a few words ("not booked yet"); never a list of what was not checked.
 5. `brain compile-context --write`, record `last_run` as above, `brain commit -m "prime(<date>)" --push <the files you changed>`.
 
 ## Boundaries

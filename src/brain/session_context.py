@@ -301,9 +301,9 @@ def owner_messages(config: Config) -> str:
             "skill or routine names, or your method's terms. Say a thing once in a reply; one short correction replaces a "
             "wrong one. Asked what is going on, what you need from them or how something is going, every item still waiting "
             "on them is part of the answer, even one raised before, and a consequence they will hit (a send that will fail, "
-            "a blocker) goes in the reply, not only in a note. Claim only what happened (accepted "
-            "is not delivered, tried is not done), cite only what is loaded here or you opened, and give a time only "
-            "once the pace is proven. Each question, offer or held promise stands alone: one short sentence naming its "
+            "a blocker) goes in the reply, not only in a note. What the vault and this conversation hold, say as plain fact, "
+            "with no \"if\", \"unconfirmed\" or \"planned\" unless the answer turns on it: a trip whose day has come is "
+            "where they are. About your own work, done means done, and a time comes only once the pace is proven. Each question, offer or held promise stands alone: one short sentence naming its "
             "subject in their words, never a task title or codename. Why says what led to it and what each answer does; "
             "recommend a choice when there is one.")
 
