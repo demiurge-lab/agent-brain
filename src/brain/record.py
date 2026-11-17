@@ -36,8 +36,8 @@ RECORD_SCHEMA = {
                            "words": {"type": "string", "maxLength": 160}, "kind": {"enum": ["rule", "correction"]}}}},
         "noted": {"type": ["array", "null"], "maxItems": 5, "items": {"type": "string", "maxLength": 240}},
         "about": {"type": ["array", "null"], "maxItems": 2, "items": {
-            "type": "object", "required": ["name", "now", "soon"], "additionalProperties": False,
-            "properties": {"name": {"type": "string", "maxLength": 60},
+            "type": "object", "required": ["name", "now", "soon", "aside"], "additionalProperties": False,
+            "properties": {"name": {"type": "string", "maxLength": 60}, "aside": {"type": "boolean"},
                            "now": {"type": ["string", "null"], "maxLength": 140},
                            "soon": {"type": ["string", "null"], "maxLength": 140}}}},
         "access": {"type": "array", "maxItems": 5, "items": {
@@ -103,9 +103,11 @@ CONVERSATION = (
     "at 5 am on October 29 to visit Faisal; Hope is there too\"). Not what is already in your context, not what you did.\n"
     "- about: what in your owner's life this conversation was about, at most two: a trip, a move, a visit, an "
     "application, an event, a purchase, something with a person in their life. Each `name` is the exact title of a "
-    "matter listed below, or a short new name for one (\"Lisbon trip\"); `now` is where it stands for your owner "
-    "after this conversation, in one line they would say themselves (\"flights booked; still need a place in Alfama\"), "
-    "or null when the conversation did not change that. Never who messaged, asked or acknowledged whom, or what you or "
+    "matter listed below, or a short new name for one (\"Lisbon trip\"); `now` is where the whole matter stands for "
+    "your owner after this conversation, in one line they would say themselves: its listed now carried forward with "
+    "what changed (\"flights booked; still need a place in Alfama\"), never only this conversation's detail, or null "
+    "when the conversation did not change that. `aside` is true only when your owner set the matter aside, dropped it "
+    "or it is over. Never who messaged, asked or acknowledged whom, or what you or "
     "another intellect reported, checked or will nudge. `soon` is the next date in it that anyone named, as "
     "`YYYY-MM-DD · what happens` (\"2026-12-03 · Theo lands\"), always when one was named, even if it is also a noted line; null only when no date came up. Not a "
     "responsibility, a task or your own machinery; empty for small talk, a test or a question "
@@ -129,8 +131,7 @@ def held(config: Config) -> str:
     asks = [f"- {item.id} · {item.kind} · {item.text[:160]}" for item in needs.items(config, config.today())
             if item.kind in ("ask", "confirm")][:20]
     open_loops = [f"- {item.id} · {item.kind} · {item.text}" for item in loops.open_loops(config)[:20]]
-    from .vault import Vault
-    shown = [f"- {title}" for title, _ in matters.listed(Vault(config.vault_path), config.today())]
+    shown = matters.held(config, config.today())
     open_tasks = [f"- {task.tid} · {task.title}{' (handed off)' if task.handoff else ''}"
                   for task in tasks.all_tasks(config) if tasks.is_open(task)][:30]
     sections = (("Already waiting on your owner; leave needsYou null if the conversation only raised one of these again, "

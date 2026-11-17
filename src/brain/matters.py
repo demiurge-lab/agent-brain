@@ -1,6 +1,7 @@
 """A matter is a hub that is not a responsibility: something the owner's life holds now or soon. Its `## Now` section
 keeps where it stands (`**Now:** <text> · <date>`), the next dated thing and the latest thing that happened
-(`**Soon:**` and `**Last:**`, each `<date> · <text>`). See docs/matters.md in the demiurge repo."""
+(`**Soon:**` and `**Last:**`, each `<date> · <text>`), and an `**Aside:**` when the owner set it aside. See
+docs/matters.md in the demiurge repo."""
 import re
 from datetime import date, timedelta
 
@@ -9,7 +10,7 @@ from . import fm
 FRESH = timedelta(days=14)    # a Now or Last this recent keeps the matter current
 AHEAD = timedelta(days=21)    # a Soon this close makes it soon
 
-LINE = re.compile(r"^[ \t]*-[ \t]+\*\*(Now|Soon|Last):\*\*[ \t]*(.+?)[ \t]*$", re.M | re.I)
+LINE = re.compile(r"^[ \t]*-[ \t]+\*\*(Now|Soon|Last|Aside):\*\*[ \t]*(.+?)[ \t]*$", re.M | re.I)
 DATE = r"(\d{4}-\d{2}-\d{2})"
 
 
@@ -32,7 +33,7 @@ def state(body: str, today: date) -> dict:
     span = fm.section(body, "Now")
     out: dict = {"now": None, "soon": None, "last": None}
     for field, value in LINE.findall(body[span[0]:span[1]]) if span else []:
-        if out[field.lower()] is None:
+        if out.get(field.lower()) is None:
             out[field.lower()] = _dated(field.lower(), value)
     now = out["now"]
     if now and date.fromisoformat(now["date"]) < today - FRESH:
@@ -46,6 +47,8 @@ def phase(kept: dict, today: date, open_work: bool) -> str:
     """current: open work on it, or something happened lately (a past Soon counts as having happened);
     soon: a Soon within AHEAD; else fading, which the app does not show."""
     recent = [kept[key]["date"] for key in ("now", "last", "soon") if kept[key]]
+    if kept.get("aside") and not open_work and all(when <= kept["aside"]["date"] for when in recent):
+        return "fading"
     if open_work or any(today - FRESH <= date.fromisoformat(when) <= today for when in recent):
         return "current"
     if kept["soon"] and today < date.fromisoformat(kept["soon"]["date"]) <= today + AHEAD:
@@ -97,17 +100,20 @@ def find(vault, name: str) -> str | None:
     return source if source and _is_matter(vault, source, standing) else None
 
 
-def write(path, today: date, *, now: str | None = None, last: str | None = None, soon: tuple[str, str] | None = None):
-    """Rewrite the hub's `## Now` lines that are given, keeping the others; the section goes after the title when the
-    hub has none. The caller holds the vault lock."""
+def write(path, today: date, *, now: str | None = None, last: str | None = None, soon: tuple[str, str] | None = None,
+          aside: str | None = None, drop: tuple[str, ...] = ()):
+    """Rewrite the hub's `## Now` lines that are given, keeping the others but those in `drop`; the section goes after
+    the title when the hub has none. The caller holds the vault lock."""
     data, body = fm.read(path)
     span = fm.section(body, "Now")
     lines = {key: f"- **{key.title()}:** {value}" for key, value in (
         ("now", now and f"{_flat(now)} · {today.isoformat()}"), ("soon", soon and f"{soon[0]} · {_flat(soon[1])}"),
-        ("last", last and f"{today.isoformat()} · {_flat(last)}")) if value}
+        ("last", last and f"{today.isoformat()} · {_flat(last)}"), ("aside", aside and f"{today.isoformat()} · {_flat(aside)}"))
+        if value}
     for kept in LINE.finditer(body[span[0]:span[1]]) if span else []:
-        lines.setdefault(kept[1].lower(), kept[0].strip())
-    section = "\n" + "\n".join(lines[key] for key in ("now", "soon", "last") if key in lines) + "\n"
+        if kept[1].lower() not in drop:
+            lines.setdefault(kept[1].lower(), kept[0].strip())
+    section = "\n" + "\n".join(lines[key] for key in ("now", "soon", "last", "aside") if key in lines) + "\n"
     if span:
         rest = body[span[1]:]
         body = body[:span[0]] + section + ("\n" + rest if rest else "")
@@ -131,7 +137,8 @@ def _sightings_path():
 
 def record(config, vault, today: date, about: list[dict], headline: str, opens: bool) -> str | None:
     """Apply a conversation record's `about` to the owner's matters: each named matter gets its Now (when the record
-    gave one), its Soon (when it named a date sooner than the one kept) and a Last of what happened. A new name becomes
+    gave one), its Soon (when it named a date sooner than the one kept) and a Last of what happened; a matter the owner
+    set aside trades its Now and Soon for an Aside, so it fades until it comes up again. A new name becomes
     a matter on its second sighting within SIGHTED, or on its first when it names a date or the same record opens a loop
     or an ask; until then it is only remembered. Returns the first matter's path, for the loops and asks this record
     opens. The caller holds the vault lock."""
@@ -146,6 +153,10 @@ def record(config, vault, today: date, about: list[dict], headline: str, opens: 
             continue
         soon = _dated("soon", " ".join((entry.get("soon") or "").split()))
         source = find(vault, given) or find(vault, name)
+        if entry.get("aside"):
+            if source:
+                write(config.vault_path / source, today, aside=headline, drop=("now", "soon"))
+            continue
         if source is None:
             key = fm.plain(name)
             recent = [day for day in seen.get(key, []) if date.fromisoformat(day) >= today - SIGHTED]
@@ -163,7 +174,7 @@ def record(config, vault, today: date, about: list[dict], headline: str, opens: 
         if soon and kept and today.isoformat() <= kept["date"] < soon["date"]:
             soon = None   # the sooner thing stays next
         write(config.vault_path / source, today, now=entry.get("now") or None, last=headline,
-              soon=(soon["date"], soon["text"]) if soon else None)
+              soon=(soon["date"], soon["text"]) if soon else None, drop=("aside",))
         first = first or source
     if store:
         store.parent.mkdir(parents=True, exist_ok=True)
@@ -223,6 +234,18 @@ def soon(config, name: str, when: date, what: str, today: date, *, open_: bool =
     if not (kept and today.isoformat() <= kept["date"] < when.isoformat()):
         write(path, today, soon=(when.isoformat(), what))
     return source
+
+
+def held(config, today: date) -> list[str]:
+    """The matters a conversation record is shown, each with where it stands, so a new Now carries the whole matter
+    forward instead of only the latest exchange."""
+    from .vault import Vault
+    vault = Vault(config.vault_path)
+    out = []
+    for title, source in listed(vault, today):
+        kept = state(vault.notes[source].body, today)["now"]
+        out.append(f"- {title}" + (f" · now: {kept['text']}" if kept else ""))
+    return out
 
 
 def lines(config, today: date) -> list[str]:

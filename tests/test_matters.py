@@ -272,3 +272,23 @@ def test_a_task_the_conversation_made_takes_its_matter(owner):
                          "cli", AT, session="demiurge:abc")
     hubs = {task.tid: task.hub for task in tasks.all_tasks(owner)}
     assert hubs == {"T-001": "Theo's visit", "T-002": "Dinners", "T-003": None}
+
+
+def test_the_record_is_shown_where_each_matter_stands(owner):
+    talk(owner, "Talked dates", [{"name": "Lisbon trip", "now": "flights booked"}])
+    assert "- Lisbon trip · now: flights booked" in record.held(owner)
+
+
+def test_a_matter_set_aside_fades_until_it_comes_up_again(owner):
+    talk(owner, "Booked flights", [{"name": "Lisbon trip", "now": "flights booked", "soon": "2026-11-20 · fly out"}])
+    talk(owner, "Shelved Lisbon", [{"name": "Lisbon trip", "now": None, "aside": True}], at=datetime(2026, 11, 12, 9, 0))
+    kept = matters.state(fm.read(owner.vault_path / "Lisbon trip.md")[1], date(2026, 11, 12))
+    assert kept["now"] is None and kept["soon"] is None and kept["aside"]["text"] == "Shelved Lisbon"
+    assert matters.phase(kept, date(2026, 11, 12), False) == "fading"
+    assert matters.phase(kept, date(2026, 11, 12), True) == "current"
+    talk(owner, "Unknown aside", [{"name": "Kayak", "now": None, "aside": True}], loops=[
+        {"kind": "promised", "text": "Look at kayaks", "with": None, "due": None}])
+    assert not (owner.vault_path / "Kayak.md").exists()
+    talk(owner, "Back on Lisbon", [{"name": "Lisbon trip", "now": "looking at May"}], at=datetime(2026, 11, 13, 9, 0))
+    kept = matters.state(fm.read(owner.vault_path / "Lisbon trip.md")[1], date(2026, 11, 13))
+    assert "aside" not in kept and matters.phase(kept, date(2026, 11, 13), False) == "current"

@@ -33,7 +33,7 @@ def _coerce(record: dict) -> dict:
         value = record.get(key)
         out[key] = [item for item in value if plain and isinstance(item, str) or required and isinstance(item, dict)
                     and all(isinstance(item.get(name), str) for name in required)
-                    and all(v is None or isinstance(v, str) for v in item.values())] if isinstance(value, list) else []
+                    and all(v is None or isinstance(v, (str, bool)) for v in item.values())] if isinstance(value, list) else []
     return out
 
 
