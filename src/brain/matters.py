@@ -73,16 +73,30 @@ def _is_matter(vault, source: str, standing: set[str]) -> bool:
             and _public(vault, source))
 
 
+def _worked(vault, today: date) -> set[str]:
+    """The hubs with live work, by name casefolded: an open task neither set aside nor put off, or an open loop or ask
+    naming the hub. As in the app, these keep a matter current however old its Now."""
+    from . import loops, needs, tasks
+    config = vault.config
+    named = [task.hub for task in tasks.all_tasks(config)
+             if tasks.is_open(task) and task.task_state != "set_aside" and not task.later]
+    named += [item.hub for item in loops.open_loops(config)]
+    named += [item.hub for item in needs.items(vault, today) if item.kind == "ask"]
+    return {hub.removesuffix(".md").casefold() for hub in named if hub}
+
+
 def listed(vault, today: date) -> list[tuple[str, str]]:
-    """The matters the record is shown by name, (title, source), the most recently touched first: hubs that keep a
-    `## Now` and have not faded."""
+    """The matters the record is shown by name, (title, source), the most recently touched first: hubs that have not
+    faded, those with live work even without a `## Now`."""
     standing = _responsibility_hubs(vault)
+    worked = _worked(vault, today)
     shown = []
     for source, note in vault.notes.items():
-        if fm.section(note.body, "Now") is None or not _is_matter(vault, source, standing):
+        work = {note.stem.casefold(), source.removesuffix(".md").casefold()} & worked
+        if not (work or fm.section(note.body, "Now") is not None) or not _is_matter(vault, source, standing):
             continue
         state_ = state(note.body, today)
-        if phase(state_, today, False) == "fading":
+        if phase(state_, today, bool(work)) == "fading":
             continue
         latest = max((state_[key]["date"] for key in ("now", "last", "soon") if state_[key]), default="")
         shown.append((latest, note.stem, source))
