@@ -328,3 +328,16 @@ def test_the_evening_is_offered_each_one_off_event_once(owner, monkeypatch):
     assert "Flight to Lisbon" in signal["events"][0]["event"]
     assert signal["matters"] == ["- Lisbon trip · now: flights booked"]
     assert "calendar" not in json.loads(signals.evening(owner) or "{}")
+
+
+def test_a_new_name_holding_a_matters_title_lands_on_it(owner):
+    fm.write(owner.vault_path / "Demiurge.md", {"kind": "hub"}, "# Demiurge\n")
+    fm.write(owner.vault_path / "Harbor.md", {"kind": "hub"}, "# Harbor\n")
+    fm.write(owner.vault_path / "Harbor Demiurge.md", {"kind": "hub"}, "# Harbor Demiurge\n")
+    talk(owner, "Sketched the runtime API", [{"name": "Demiurge runtime API", "now": "API shape agreed"}])
+    assert "- **Now:** API shape agreed" in fm.read(owner.vault_path / "Demiurge.md")[1]
+    assert not (owner.vault_path / "Demiurge runtime API.md").exists()
+    talk(owner, "Harbor rollout", [{"name": "Demiurge for Harbor rollout", "now": "pilot set"}])
+    assert "pilot set" in fm.read(owner.vault_path / "Harbor Demiurge.md")[1]
+    talk(owner, "Kayak", [{"name": "Kayak trip", "now": "looking"}])
+    assert not (owner.vault_path / "Kayak trip.md").exists()
