@@ -354,6 +354,28 @@ def mark(config: Config, ident: str, verdict: str, words: str, today: date) -> L
     return line
 
 
+def cover(config: Config, ident: str, gid: str, *, check: bool = False) -> Line:
+    """Name the goal an After line reflects, replacing any goal it named before. The caller holds the vault lock."""
+    ident = ident.lstrip("^")
+    path = holder(config, ident)
+    if path is None:
+        raise ValueError(f"no portrait line ^{ident}; a line gets its id when the night or `brain portrait stamp` runs")
+    data, body = fm.read(path)
+    line = next(line for line in parse(body)[0] if line.id == ident)
+    if line.section != "After":
+        raise ValueError(f"^{ident} is a {line.section} line; only an After line names a goal")
+    if check:
+        return line
+    raw = body.splitlines(keepends=True)
+    start, end = block(raw, ident)
+    kept = [text for text in raw[start + 1:end] if not text.lstrip().startswith("- goal:")]
+    raw[start:end] = [raw[start], f"  - goal: {gid}\n", *kept]
+    fm.write(path, data, "".join(raw))
+    refresh(config)
+    line.goal = gid
+    return line
+
+
 PASSES = 3   # facet passes a night; the rest wait for the next
 
 
