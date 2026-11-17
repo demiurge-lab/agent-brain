@@ -114,6 +114,20 @@ def find(vault, name: str) -> str | None:
     return source if source and _is_matter(vault, source, standing) else None
 
 
+def _words(text: str) -> set[str]:
+    return {word for word in re.findall(r"[a-z0-9]+", text.casefold()) if len(word) > 2 and word not in ("the", "and", "for")}
+
+
+def _within(vault, name: str) -> str | None:
+    """The matter whose whole title a record's new name contains ("Demiurge runtime API" is Demiurge's), the longest
+    title when several do and none when two tie, so a facet of a matter lands on it instead of starting a rival."""
+    standing, wanted = _responsibility_hubs(vault), _words(name)
+    fits = [(len(words), source) for source, note in vault.notes.items()
+            if (words := _words(note.stem)) and words <= wanted and _is_matter(vault, source, standing)]
+    best = max(fits, default=None)
+    return best[1] if best and [size for size, _ in fits].count(best[0]) == 1 else None
+
+
 def write(path, today: date, *, now: str | None = None, last: str | None = None, soon: tuple[str, str] | None = None,
           aside: str | None = None, drop: tuple[str, ...] = ()):
     """Rewrite the hub's `## Now` lines that are given, keeping the others but those in `drop`; the section goes after
@@ -152,7 +166,8 @@ def _sightings_path():
 def record(config, vault, today: date, about: list[dict], headline: str, opens: bool) -> str | None:
     """Apply a conversation record's `about` to the owner's matters: each named matter gets its Now (when the record
     gave one), its Soon (when it named a date sooner than the one kept) and a Last of what happened; a matter the owner
-    set aside trades its Now and Soon for an Aside, so it fades until it comes up again. A new name becomes
+    set aside trades its Now and Soon for an Aside, so it fades until it comes up again. A new name holding a
+    matter's whole title is that matter; any other new name becomes
     a matter on its second sighting within SIGHTED, or on its first when it names a date or the same record opens a loop
     or an ask; until then it is only remembered. Returns the first matter's path, for the loops and asks this record
     opens. The caller holds the vault lock."""
@@ -166,7 +181,7 @@ def record(config, vault, today: date, about: list[dict], headline: str, opens: 
         if not name:
             continue
         soon = _dated("soon", " ".join((entry.get("soon") or "").split()))
-        source = find(vault, given) or find(vault, name)
+        source = find(vault, given) or find(vault, name) or _within(vault, name)
         if entry.get("aside"):
             if source:
                 write(config.vault_path / source, today, aside=headline, drop=("now", "soon"))
