@@ -1,7 +1,7 @@
 ---
 name: {prefix}evening
 description: Decide what has gone quiet, so nobody has to sweep a list
-version: 2.7.0
+version: 2.8.0
 metadata:
   runtime:
     tags: [routine, day]
@@ -60,10 +60,14 @@ Everything to decide is in the Script Output above, one JSON from `brain evening
    **Goal accounts.** `accounts` lists the active goals with work last week and no account for it. For each, read `brain goals activity G-n --json --weeks 3` and write `brain goals G-n account "<2–4 plain sentences>" --week <its week>`: what was done toward the goal that week, why it served the company and what came of it. Plain, for anyone in the company, with no ids, links, paths or routine names; say what is still open when nothing came of it yet.
 <!-- /enterprise -->
 6. **What went wrong today.** `answeredToday` holds today's rows in `{agent_dir}/Answered/`: an idea or offer {human_name} declined, a draft they called not this, a loop dropped because you mishandled it. For each, ask what you would do differently next time, as a rule for that kind of work. When there is one, learn it once, in its field: `brain learn add --field <Field> --claim "<how to act next time>" --source "reflection on <T-nnn, or what happened>" --candidate`. At most one line per outcome; most need none.
+<!-- personal -->
+
+   **Calendar.** `calendar.events` lists one-off events coming up that you have not been offered before, with {human_name}'s current matters in `calendar.matters`. For an event that belongs to a listed matter (the flight of a trip, the move-in day of a move), run `brain matters --soon "<matter's exact title>" --date YYYY-MM-DD --what "<what happens, a few words>"`. A significant event of theirs that no matter holds (travel, a move, a visit, a medical appointment, an exam, an interview) opens one: the same command with a short name of the matter ("Lisbon trip", not the event's title) and `--open` (at most two a day). Never a routine meeting, a class or someone else's event. Each event is offered once; one you leave is not offered again.
+<!-- /personal -->
 7. `brain commit -m "evening(<date>)" --push` if anything changed. The run's account gives the counts by kind.
 
 ## Boundaries
-Only task state fields and Needs you. No hubs, profiles, CURRENT threads or memory structure.
+Only task state fields, Needs you and, from the calendar, matters' Soon through `brain matters`. No other hub writes, profiles, CURRENT threads or memory structure.
 <!-- personal -->
 No messages: what is decided here shows in the briefing and the app.
 <!-- /personal -->

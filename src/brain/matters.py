@@ -216,7 +216,7 @@ def task_moved(config, task, today: date, what: str) -> None:
     write(path, today, last=what, soon=soon)
 
 
-OPENS_A_DAY = 2   # matters the morning may open from the calendar, so a busy week never floods the owner's list
+OPENS_A_DAY = 2   # matters the evening may open from the calendar, so a busy week never floods the owner's list
 
 
 def soon(config, name: str, when: date, what: str, today: date, *, open_: bool = False) -> str:
@@ -289,3 +289,32 @@ def link_tasks(config, today: date, source: str, conversation: str) -> list[str]
             tasks.set_fields(config, task.tid, today, values={"hub": source.removesuffix(".md")})
             linked.append(task.tid)
     return linked
+
+
+RECURRING = re.compile(r"_\d{8}(T\d{6}Z?)?$")   # Google's id for one instance of a repeating event
+
+
+def calendar_offers(config, vault, today: date) -> list[dict]:
+    """The one-off events from tomorrow through AHEAD that the evening has not been offered yet, each `{date, event}`,
+    marked offered so each is decided once. A repeating event (by its id, or a title seen twice in the window) is never
+    one: classes and standing meetings are not matters."""
+    import json
+    from . import channel_files, runtime
+    home = runtime.configured()
+    if home is None:
+        return []
+    store = home / "records" / "calendar-offers.json"
+    offered = json.loads(store.read_text(encoding="utf-8")) if store.is_file() else {}
+    found, _ = channel_files.events(vault, AHEAD.days)
+    titles = [fm.plain(event.title) for event in found]
+    out = []
+    for event in sorted(found, key=lambda event: event.start):
+        key = event.id or f"{event.title}|{event.start.isoformat()}"
+        if (event.start.date() <= today or key in offered or RECURRING.search(event.id)
+                or titles.count(fm.plain(event.title)) > 1):
+            continue
+        offered[key] = event.start.date().isoformat()
+        out.append({"date": event.start.date().isoformat(), "event": event.line(today).removeprefix("- ")})
+    store.parent.mkdir(parents=True, exist_ok=True)
+    fm.write_text(store, json.dumps({key: day for key, day in offered.items() if day >= today.isoformat()}, indent=1))
+    return out
