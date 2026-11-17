@@ -165,7 +165,8 @@ def parse_calendar(text: str, account: str, config: Config) -> list[CalendarEven
     return events
 
 
-def calendar(vault: Vault, days: int = 7) -> str:
+def events(vault: Vault, days: int = 7) -> tuple[list[CalendarEvent], list[str]]:
+    """The owner's synced events from today through `days` ahead, once each, and the accounts with no calendar."""
     today = vault.config.today()
     found, missing = {}, []
     for account, folder in synced_accounts(vault):
@@ -176,29 +177,35 @@ def calendar(vault: Vault, days: int = 7) -> str:
         for offset in range(-1, days + 2):
             path = folder / "calendar" / f"{today + timedelta(days=offset)}.md"
             try:
-                events = parse_calendar(path.read_text(encoding="utf-8"), account, vault.config)
+                parsed = parse_calendar(path.read_text(encoding="utf-8"), account, vault.config)
             except OSError:
                 continue
-            for event in events:
+            for event in parsed:
                 if event.start.date() <= today + timedelta(days=days) and event.last_day >= today:
                     key = event.id or (event.title, event.start, event.end)
                     found.setdefault(key, event)
+    return list(found.values()), missing
+
+
+def calendar(vault: Vault, days: int = 7) -> str:
+    today = vault.config.today()
+    found, missing = events(vault, days)
     def order(event: CalendarEvent):
         start = event.start.date()
         return (0 if start == today else 1 if start < today else 2, event.start, event.title)
-    events = sorted(found.values(), key=order)[:CALENDAR_LIMIT]
+    shown = sorted(found, key=order)[:CALENDAR_LIMIT]
     seen = coverage(vault)
     if seen is None:
-        return "" if not events else f"## Calendar: today and the next {days} days\n\n" + "\n".join(event.line(today) for event in events)
+        return "" if not shown else f"## Calendar: today and the next {days} days\n\n" + "\n".join(event.line(today) for event in shown)
     head = f"## Calendar: today and the next {days} days\n\n"
     if not owner_accounts(vault):
         # An organisation may never connect a calendar; saying so in every session is noise.
         return "" if vault.config.edition == "enterprise" else head + "- I can't see the calendar: no Google account of the owner's is connected."
-    if seen["problem"].endswith(("not set up", "not run yet")) and not events:   # synced files on disk still count
+    if seen["problem"].endswith(("not set up", "not run yet")) and not shown:   # synced files on disk still count
         return head + f"- I can't see the calendar: {seen['problem']}."
     if missing and len(missing) == len(owner_accounts(vault)):
         return head + f"- I can't see the calendar: nothing has synced for {', '.join(missing)}."
-    lines = [event.line(today) for event in events] or [f"- Nothing on the calendar for the next {days} days."]
+    lines = [event.line(today) for event in shown] or [f"- Nothing on the calendar for the next {days} days."]
     if seen["problem"]:
         lines.append(f"- Note: {seen['problem']}.")
     if missing:

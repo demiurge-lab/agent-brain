@@ -123,7 +123,7 @@ def explore(config: Config) -> str:
 
 def evening(config: Config) -> str:
     """Everything the evening decides, as one JSON, or nothing when it has nothing to decide (the run is skipped)."""
-    from . import continuation, needs, tasks, validate
+    from . import continuation, matters, needs, tasks, validate
     now, today = _check(config), config.today()
     registered, archived = tasks.load_tasks(config)
     ask = lambda item: {"id": item.id, "since": item.since, "text": item.text, "source": item.source, "task": item.task}
@@ -141,6 +141,8 @@ def evening(config: Config) -> str:
         "answeredToday": [line.removeprefix("- ") for line in answered.read_text(encoding="utf-8").splitlines()
                           if line.startswith(f"- {today.isoformat()} ")] if answered.is_file() else [],
     }
+    if config.edition != "enterprise" and (offers := matters.calendar_offers(config, vault, today)):
+        signal["calendar"] = {"events": offers, "matters": matters.held(config, today)}
     if config.edition == "enterprise":   # a personal vault's goals age in the people pass
         from . import goals
         signal["goals"] = [{"id": goal.gid, "title": goal.title, "reasons": reasons} for goal in goals.active(config)

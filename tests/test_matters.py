@@ -1,4 +1,5 @@
 """A matter's kept state, and what the app is given for it."""
+import json
 from datetime import date, datetime
 
 import pytest
@@ -307,3 +308,23 @@ def test_a_matter_with_live_work_is_listed_whatever_its_now(vault):
                  ("T-003", "Sort the inbox", "Inbox", {"state": "set_aside"}))))
     shown = {title for title, _ in matters.listed(Vault(config.vault_path), TODAY)}
     assert {"Paper", "Visa"} <= shown and "Inbox" not in shown
+
+
+def test_the_evening_is_offered_each_one_off_event_once(owner, monkeypatch):
+    from brain import channel_files, signals
+    from brain.channel_files import CalendarEvent
+    at = lambda day, hour: datetime(2026, 11, day, hour, 0, tzinfo=owner.zone)
+    found = [CalendarEvent("Flight to Lisbon", at(20, 9), at(20, 12), False, "a1", "", ""),
+             CalendarEvent("Contracts", at(13, 9), at(13, 10), False, "c1_20261113T140000Z", "", ""),
+             CalendarEvent("Team sync", at(12, 9), at(12, 10), False, "s1", "", ""),
+             CalendarEvent("Team sync", at(19, 9), at(19, 10), False, "s2", "", ""),
+             CalendarEvent("Lunch today", at(11, 12), at(11, 13), False, "l1", "", "")]
+    monkeypatch.setattr(channel_files, "events", lambda vault, days: (found, []))
+    monkeypatch.setattr(owner.__class__, "today", lambda self: TODAY)
+    monkeypatch.setattr(signals, "_check", lambda config: AT.replace(tzinfo=config.zone))
+    talk(owner, "Booked flights", [{"name": "Lisbon trip", "now": "flights booked"}])
+    signal = json.loads(signals.evening(owner))["calendar"]
+    assert [entry["date"] for entry in signal["events"]] == ["2026-11-20"]
+    assert "Flight to Lisbon" in signal["events"][0]["event"]
+    assert signal["matters"] == ["- Lisbon trip · now: flights booked"]
+    assert "calendar" not in json.loads(signals.evening(owner) or "{}")
