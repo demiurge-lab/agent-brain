@@ -6,6 +6,7 @@ import pytest
 from brain import fm, journal, loops, matters, needs, record, state
 from brain.config import Config
 from brain.tasks import Task
+from brain.vault import Vault
 
 TODAY = date(2026, 11, 11)
 NOW = ("## Now\n- **Now:** flights booked; still need a place · 2026-11-10\n"
@@ -292,3 +293,17 @@ def test_a_matter_set_aside_fades_until_it_comes_up_again(owner):
     talk(owner, "Back on Lisbon", [{"name": "Lisbon trip", "now": "looking at May"}], at=datetime(2026, 11, 13, 9, 0))
     kept = matters.state(fm.read(owner.vault_path / "Lisbon trip.md")[1], date(2026, 11, 13))
     assert "aside" not in kept and matters.phase(kept, date(2026, 11, 13), False) == "current"
+
+
+def test_a_matter_with_live_work_is_listed_whatever_its_now(vault):
+    config = Config.load(vault)
+    fm.write(vault / "Paper.md", {"kind": "hub"}, "# Paper\n")
+    fm.write(vault / "Visa.md", {"kind": "hub"}, "# Visa\n\n## Now\n- **Now:** forms filed · 2026-09-01\n")
+    fm.write(vault / "Inbox.md", {"kind": "hub"}, "# Inbox\n\n## Now\n- **Now:** sorted · 2026-09-01\n")
+    fm.write(vault / "agent/Tasks.md", {}, "# Tasks\n\n" + "".join(Task(tid, title, f"- **Hub:** [[{hub}]]\n", fields).render()
+             for tid, title, hub, fields in (
+                 ("T-001", "Draft the paper", "Paper", {"state": "in_progress"}),
+                 ("T-002", "Book the interview", "Visa", {"state": "in_progress"}),
+                 ("T-003", "Sort the inbox", "Inbox", {"state": "set_aside"}))))
+    shown = {title for title, _ in matters.listed(Vault(config.vault_path), TODAY)}
+    assert {"Paper", "Visa"} <= shown and "Inbox" not in shown
