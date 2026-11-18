@@ -435,3 +435,22 @@ def test_decay_counts_evidence_rows(vault, monkeypatch, tmp_path):
     evidence.append("anki", [evidence.Evidence(TODAY - timedelta(days=2), "reviewed", "cards", "own", ("study",), "deck:x")])
     goals.change(cfg, "G-1", "evidence", text=f"{TODAY - timedelta(days=2)} · Studied · evidence:anki")
     assert goals.decay(cfg, TODAY) == []
+
+
+def test_a_goal_names_the_portrait_line_it_reflects(vault, capsys):
+    from brain import portrait
+    path = portrait.portrait_path(Config.load(vault))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fm.write(path, {"kind": "orientation", "pinned": True, "tier": "hot"},
+             "# Portrait\n\n## After\n- Wants to read beyond law · said · high · 2026-11-05 · [[Reading]] ^ab12\n"
+             "  - horizon: year\n- Wants to run more · guess · low · 2026-11-05 · [[Reading]] ^cd34\n"
+             "  - horizon: now\n  - goal: G-9\n\n## Taste\n- Short essays · seen · medium · 2026-11-01 · [[Reading]] ^ef56\n")
+    run(vault, capsys, "new", "Reading", "--words", "Read beyond my field", "--said", TODAY.isoformat(), "--inferred",
+        "--evidence", f"{TODAY} · Returned to the reading list · [[Reading]]", "--covers", "^ab12")
+    assert "^ab12\n  - goal: G-1\n  - horizon: year\n" in path.read_text()
+    with pytest.raises(SystemExit, match="Taste line"):
+        run(vault, capsys, "new", "Essays", "--words", "Essays", "--from-app", "--covers", "ef56")
+    assert [goal.gid for goal in goals.load(Config.load(vault))] == ["G-1"]
+    run(vault, capsys, "G-1", "link", "^cd34")
+    text = path.read_text()
+    assert "^cd34\n  - goal: G-1\n  - horizon: now\n" in text and "G-9" not in text

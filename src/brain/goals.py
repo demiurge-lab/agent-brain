@@ -514,9 +514,12 @@ def _said(config: Config, said: str | None) -> str:
 
 def new(config: Config, title: str, words: str, *, reach: bool = False, by: str | None = None,
         said: str | None = None, inferred: bool = False, evidence: list[str] | None = None,
-        from_app: bool = False) -> Goal:
+        from_app: bool = False, covers: str | None = None) -> Goal:
     if not inferred:
         _require_owner(config, from_app)
+    if covers:
+        from . import image
+        image.cover(config, covers, "", check=True)
     if errors := problems(config):
         raise ValueError(errors[0])
     title, words = line("title", title, 80), line("words", words, 500)
@@ -547,7 +550,10 @@ def new(config: Config, title: str, words: str, *, reach: bool = False, by: str 
     goal = Goal(gid, title, f'- **In their words:** "{words}" ({_said(config, said)})\n', state)
     for value in evidence_lines:
         _add_evidence(config, goal, value)
-    return _write(config, *read(config), goal, new=True, from_app=from_app)
+    goal = _write(config, *read(config), goal, new=True, from_app=from_app)
+    if covers:
+        image.cover(config, covers, gid)
+    return goal
 
 
 ROW = re.compile(r"\bevidence:([a-z][a-z0-9-]*)\b")
@@ -870,10 +876,15 @@ def decay(config: Config, today: date, report: list[str] | None = None, *, vault
 
 
 def link_note(config: Config, gid: str, note: str) -> None:
-    """Hubs and prepared drafts keep their own formats; validate the edge before writing it."""
+    """Hubs and prepared drafts keep their own formats; validate the edge before writing it. A portrait line (`^id`)
+    names the goal it reflects."""
     from .tasks import note_name, _replace_field
     from .vault import Vault
     require_active(config, gid)
+    if re.fullmatch(r"\^?[0-9a-f]{4}", note):
+        from . import image
+        image.cover(config, note, gid)
+        return
     rel = note_name(config, note) + ".md"
     path = config.vault_path / rel
     data, body = fm.read(path)

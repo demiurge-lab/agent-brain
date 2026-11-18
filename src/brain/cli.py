@@ -1196,11 +1196,11 @@ def cmd_goals(args):
             raise ValueError("--weeks goes with activity")
         if args.week is not None and operation != "account":
             raise ValueError("--week goes with account")
-        allowed = {"new": {"words", "reach", "by", "said", "inferred", "evidence"}, "edit": {"title", "words", "kind", "by", "clear_by", "said"},
+        allowed = {"new": {"words", "reach", "by", "said", "inferred", "evidence", "covers"}, "edit": {"title", "words", "kind", "by", "clear_by", "said"},
                    "evidence": {"text"}, "link": {"text"}, "reached": {"why", "evidence"},
                    "superseded-by": {"text", "why", "evidence"}, "set-aside": {"why"}, "reopen": {"why"}, "not-a-goal": {"why"},
                    "account": {"text"}, "weight": {"text"}, "correct": {"text", "why"}}
-        supplied = {name for name in ("words", "title", "why", "reach", "kind", "by", "clear_by", "said", "text", "inferred", "evidence")
+        supplied = {name for name in ("words", "title", "why", "reach", "kind", "by", "clear_by", "said", "text", "inferred", "evidence", "covers")
                     if getattr(args, name) is not None and getattr(args, name) is not False}
         if supplied - allowed.get(operation, set()):
             raise ValueError(f"{operation} does not take " + ", ".join(sorted(supplied - allowed.get(operation, set()))))
@@ -1240,7 +1240,7 @@ def cmd_goals(args):
         with vault_lock(config):
             if which == "new":
                 entry = goals.new(config, action or "", args.words or "", reach=args.reach, by=args.by, said=args.said,
-                                  inferred=args.inferred, evidence=args.evidence, from_app=args.from_app)
+                                  inferred=args.inferred, evidence=args.evidence, from_app=args.from_app, covers=args.covers)
             elif goals.ID.fullmatch(which) and action in operations:
                 if action in ("account", "weight", "correct"):
                     entry = goals.steer(config, which, action, args.text or "", why=args.why, from_app=args.from_app,
@@ -2367,6 +2367,7 @@ def main(argv=None):
     s.add_argument("--evidence", action="append", help="dated evidence; repeatable, required with --inferred or intellect reached/superseded-by")
     s.add_argument("--said", help="YYYY-MM-DD: when the person said their words, if not today")
     s.add_argument("--reach", action="store_true"); s.add_argument("--kind", choices=goals.KINDS)
+    s.add_argument("--covers", help="with new: the portrait After line (^id) the goal reflects")
     by = s.add_mutually_exclusive_group()
     by.add_argument("--by"); by.add_argument("--clear-by", action="store_true")
     s.add_argument("--from-app", action="store_true"); s.add_argument("--json", action="store_true")
