@@ -228,6 +228,9 @@ def responsibilities(vault: Vault) -> list[str]:
                 and isinstance(note.data.get("id"), str)}
     for entry in entries:
         ident, rel = entry["id"], entry["hub"]
+        records = entry.get("records")
+        if isinstance(records, str) and PurePosixPath(records).is_absolute():
+            problems.append(f"{rel}: records must be relative to the vault folder: {records}")
         if not re.fullmatch(responsibility_ids.ID_PATTERN, ident):
             problems.append(f"{rel}: responsibility id must match ^{responsibility_ids.ID_PATTERN}$")
         if ident in seen:
@@ -377,7 +380,8 @@ def kept_edits(vault: Vault) -> list[str]:
 
 def schedule_hygiene(vault: Vault) -> list[str]:
     from . import schedule
-    return schedule.problems(vault.config, known_needs=False)
+    from .portability import schedule_problems
+    return schedule.problems(vault.config, known_needs=False) + schedule_problems(vault.config)
 
 
 def schedule_warnings(vault: Vault) -> list[str]:
