@@ -17,6 +17,7 @@ OUTCOMES = ("done", "dropped")
 STALE_HOURS = 4
 WAITING_HOURS = 24
 STALE_DAYS = 2      # past due this long, watch has had its chances: the evening decides the loop
+CLAIM_MINUTES = 30
 TEMPLATE = """---
 kind: orientation
 tier: warm
@@ -48,6 +49,7 @@ class Item:
     wake: str = ""      # when it next acts on its own, written when it opens; a `when` with only a condition has none
     if_: str = ""       # a `when` loop's condition: what has to happen before it acts
     hub: str = ""       # the matter it belongs to, as a note path; its source is often another note
+    claimed: str = ""
     id: str = field(init=False)
 
     def __post_init__(self) -> None:
@@ -161,7 +163,7 @@ def read(block: items.Block) -> Item | None:
             current.if_ = value
         elif name == "hub":
             current.hub = value
-        elif name in ("due", "ready", "wake"):
+        elif name in ("due", "ready", "wake", "claimed"):
             try:
                 _time(value)
             except ValueError:
@@ -185,7 +187,7 @@ def parse_section(body: str, title: str = "Open") -> list[Item]:
 def render(item: Item) -> str:
     bullet = f"- {item.since} · {item.kind} · {item.text} · [[{item.source}]]"
     for label, value in (("with", item.with_), ("due", item.due), ("if", item.if_), ("wake", item.wake),
-                         ("ready", item.ready), ("task", item.task), ("hub", item.hub)):
+                         ("ready", item.ready), ("task", item.task), ("hub", item.hub), ("claimed", item.claimed)):
         if value:
             bullet += f"\n  - {label}: {value}"
     if item.closed:
@@ -196,7 +198,7 @@ def render(item: Item) -> str:
 def as_dict(item: Item) -> dict:
     out = {"id": item.id, "kind": item.kind, "text": item.text, "with": item.with_, "due": item.due,
            "since": item.since, "source": item.source, "ready": item.ready, "task": item.task,
-           "wake": item.wake, "if": item.if_, "hub": item.hub,
+           "wake": item.wake, "if": item.if_, "hub": item.hub, "claimed": item.claimed,
            # who it waits on: a wait's counterpart; a promise, a debt or a when waits on the intellect itself
            "on": item.with_ if item.kind == "waiting" else ""}
     if item.closed:
@@ -310,12 +312,37 @@ def ready(config: Config, which: str, at: datetime) -> Item:
         item = _pick(config, which)
         if item.ready:
             return item
-        path = path_for(config)
-        data, body = fm.read(path)
-        body, _ = items.without(body, "Open", read, lambda loop: loop.id == item.id)
         item.ready = config.local(at).strftime("%Y-%m-%d %H:%M")
-        body = _insert(body, "Open", render(item))
-        fm.write(path, data, body)
+        _rewrite(config, item)
+        return item
+
+
+def _rewrite(config: Config, item: Item) -> None:
+    path = path_for(config)
+    data, body = fm.read(path)
+    body, _ = items.without(body, "Open", read, lambda loop: loop.id == item.id)
+    fm.write(path, data, _insert(body, "Open", render(item)))
+
+
+def claim(config: Config, which: str, at: datetime) -> Item:
+    """Taken before acting on a loop, so two routines waking in the same slot cannot both send what it holds: the second
+    is refused until the first closes or releases it, or its claim goes stale."""
+    with vault_lock(config):
+        item = _pick(config, which)
+        now = config.local(at)
+        if item.claimed and now - config.local(_time(item.claimed)) < timedelta(minutes=CLAIM_MINUTES):
+            raise ValueError(f"another run took this loop at {item.claimed}; leave it to that run")
+        item.claimed = now.strftime("%Y-%m-%d %H:%M")
+        _rewrite(config, item)
+        return item
+
+
+def release(config: Config, which: str) -> Item:
+    with vault_lock(config):
+        item = _pick(config, which)
+        if item.claimed:
+            item.claimed = ""
+            _rewrite(config, item)
         return item
 
 

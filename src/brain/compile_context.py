@@ -127,8 +127,10 @@ def holding(config) -> str:
         return ""
     lines = [f"## Holding ({config.link(config.agent('Loops'))})", "",
              "What you promised, owe, wait on, and will do when something happens; your owner reads each line as written. "
-             "When a message meets a `when` loop's condition, act on it now within existing permissions, then "
-             "`brain loops --close <id> --outcome done --because '<what happened>'`.", ""]
+             "When a message meets a `when` loop's condition, act on it now within existing permissions. Before you "
+             "send or do what any loop holds, `brain loops --claim <id>`; a refused claim means another run is acting "
+             "on it, so leave it. Then `brain loops --close <id> --outcome done --because '<what happened>'`, or "
+             "`brain loops --release <id>` if acting failed.", ""]
     for item in rows[:HOLDING_LOOPS]:
         lines.append(f"- {item.id} · {item.kind} · {item.text}" + (f" · with {item.with_}" if item.with_ else "")
                      + (f" · if {item.if_}" if item.if_ else "") + (f" · wake {item.wake}" if item.wake else ""))

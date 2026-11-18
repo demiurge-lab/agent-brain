@@ -1,5 +1,7 @@
 """Held work, its after-conversation capture, and the owner's view of it."""
 import json
+import subprocess
+import sys
 from dataclasses import replace
 from datetime import date, datetime, timedelta, timezone
 
@@ -591,3 +593,29 @@ def test_state_reads_a_loop_whose_source_quotes_the_owner_at_length(config):
     quote = "Sam, 2026-10-28: " + "when a rental site needs my login, tell me which one and what to do " * 5
     loops.add(config, AT, "when", "Tell Sam which rental site needs a login", quote, condition="a site needs Sam's login")
     assert [row["text"] for row in state.build(config, AT.date())["loops"]] == ["Tell Sam which rental site needs a login"]
+
+
+def test_two_runs_in_the_same_slot_deliver_a_held_message_once(config):
+    loops.add(config, AT, "when", "Tell them the report is finished", "Trip", due="2026-10-29 06:15")
+    [item] = loops.open_loops(config)
+    brain = [sys.executable, "-m", "brain", "loops", "--vault", str(config.vault_path), "--claim", item.id]
+    runs = [subprocess.Popen(brain, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) for _ in range(2)]
+    results = [(run.wait(), run.stderr.read()) for run in runs]
+    assert sorted(code for code, _ in results) == [0, 1]
+    assert any("another run took this loop" in err for _, err in results)
+    [claimed] = loops.open_loops(config)
+    assert claimed.claimed and loops.as_dict(claimed)["claimed"] == claimed.claimed
+
+
+def test_a_released_or_stale_claim_can_be_taken_again(config):
+    loops.add(config, AT, "when", "Tell them the report is finished", "Trip", due="2026-10-29 06:15")
+    first = loops.claim(config, "Tell them the report is finished", AT)
+    assert loops.parse_section("## Open\n" + loops.render(first)) == [first]
+    with pytest.raises(ValueError, match="another run took this loop at 2026-10-28 12:00"):
+        loops.claim(config, first.id, AT + timedelta(minutes=5))
+    assert loops.release(config, first.id).claimed == ""
+    assert loops.claim(config, first.id, AT + timedelta(minutes=6)).claimed == "2026-10-28 12:06"
+    assert loops.claim(config, first.id, AT + timedelta(minutes=6 + loops.CLAIM_MINUTES)).claimed == "2026-10-28 12:36"
+    loops.close(config, first.id, AT + timedelta(hours=1), "done", "Told them")
+    with pytest.raises(ValueError, match="no open loop"):
+        loops.claim(config, first.id, AT + timedelta(hours=2))
