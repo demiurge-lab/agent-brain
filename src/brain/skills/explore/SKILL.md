@@ -1,7 +1,7 @@
 ---
 name: {prefix}explore
 description: Do one thing for {human_name}, or nothing
-version: 4.5.0
+version: 4.6.0
 metadata:
   runtime:
     tags: [routine, day, research]
@@ -17,7 +17,7 @@ Work, a person in their life, or something they would enjoy.
 <!-- enterprise -->
 Work for the organisation and its members.
 <!-- /enterprise -->
-It runs each morning and again only when something was added (at most three times a day); the Run Context says which pass this is and what was added. Few passes, so spend each one: look things up and make the thing properly.
+It runs each morning and again only when something was added (at most three times a day); the Run Context says which pass this is and what was added. Few passes, so spend each one: look things up and make the thing properly, within the hour a pass has.
 
 <!-- enterprise -->
 {organisation}
@@ -70,10 +70,10 @@ Read `brain goals list --json` first: {human_name}'s goals, as its leadership st
 <!-- /enterprise -->
    A guess about what you would find is not a reason to drop a candidate. Skip anything in the explore ledger (`{agent_dir}/Explore/`) from the last three days unless new evidence arrived.
 <!-- personal -->
-   Choose the one where two hours most plausibly produces something {human_name} would be glad of, work or not; an organisation's candidates serve its initiatives and assigned work.
+   Choose the one where this pass's hour most plausibly produces something {human_name} would be glad of, work or not; an organisation's candidates serve its initiatives and assigned work.
 <!-- /personal -->
 <!-- enterprise -->
-   Choose the one where two hours most plausibly produces something useful to {human_name}'s goals, initiatives and assigned work.
+   Choose the one where this pass's hour most plausibly produces something useful to {human_name}'s goals, initiatives and assigned work.
 <!-- /enterprise -->
    Before choosing its form, read `brain reception summary`: a kind of offer that keeps coming back ignored or declined (letters nobody opens, drafts nobody uses) is not made again until something changes. When all three lose to that bar, the answer is nothing, and the three are the record of why. While `brain ideas` says {human_name} is a new owner, the goal still comes first: in their first weeks one useful thing made or found for them, held, shows what you can do better than any offer, so prefer it to nothing. Still one thing made. A candidate that lost only because it needs {human_name}'s yes (a decision, access, money, or work too large to make unasked), with real evidence behind it, is not dropped. A decision on work already under way (ship a ready fix, a choice an open task is waiting on) goes on that task as its `waiting_for_owner` Ask, or `brain needs-you --ask` (`--hub <matter>` when it is about one of `brain matters`), never as an idea; new help they would have to agree to is filed as one idea, `brain ideas --add "<the offer, at most 25 words>" --source <the note it came from> --why "<what led to it, what they get if yes, what happens if no; at most 60 words>" [--needs "<what it takes>"] [--goal G-n]`, at most one a run. When `brain ideas` refuses, let it go.
 <!-- personal -->
@@ -83,6 +83,7 @@ Read `brain goals list --json` first: {human_name}'s goals, as its leadership st
 4. **Do the work.** Record the source of new tasks and the purpose of draft works; work that serves a goal names it (`brain task new "<title>" --source <note> --goal G-n`, `brain works goal <slug> --goal G-n` on a draft work).
 <!-- /enterprise -->
    An organisation follows its initiatives and assigned duties.
+   Save it as a work as soon as it is useful. After that, check each fact once: a source already read is not opened or searched again, and the piece is not rewritten over and over. Stop when it is good enough; a bigger piece continues on the next pass, or as a task, not in this one.
 5. **File it: made and held by default.** A fact goes through the surprise gate into the owning hub, profile or task with its source and date. A thing made or drafted for a task goes beside that task. When no task owns it, it is a draft work in the owner's Library, theirs to keep or let go: `demiurge works new --title "<title>" --form document|table|page --description "<a paragraph for its README: what it is and what it is for>" --what "<what it is>" --why "<why it was made>" [--hub "<matter>"]`, then the thing itself written into its working copy at `$AGENT_HOME/works/<slug>/` (`index.md` for a document), and `brain works goal <slug> --goal G-n` when it serves a goal. `--what` is how the owner reads it on their For you list: one sentence of at most 25 words, to them, naming the thing and what it is for rather than listing its contents, and without hedges about what it is not ("A two-day workshop plan for the middle of the project", not "Held …"). `--why` says why it was made in the owner's terms: `Toward <the goal's title>`, `You said “<their words>”`, the loop it closes, or `For <the day>` with what the day is (a date alone tells them nothing). `--hub` is the matter it serves when it serves one of the matters `brain matters` lists (a trip, an event, an application), by its title. Name it in the hub, profile or task it serves ("Lisbon day plan, in the Library"), so retrieval and prefetch find it when the subject comes up. An unopened draft is put away after 7 days. Where `demiurge works new` says the Library is not set up, hold it instead under `{agent_dir}/Prepared/YYYY-MM-DD <title>.md` with `kind: draft`, `tier: warm`, `goal:` or `for:`, `hub: [[<matter>]]`, the `--what` sentence as its `index_line`, and a wikilink from what it serves; it settles with `brain reception set "<its note>" used` or `declined:<why>`.
 <!-- personal -->
    Primed and the next briefing name it once. The owner keeps it or lets it go from For you or the Library, and that settles its reception row; a conversation on its subject may offer it and settles it with `brain reception set work:<slug> used` or `declined:<why>`.
