@@ -1,3 +1,4 @@
+import json
 import os
 import tomllib
 from dataclasses import replace
@@ -212,3 +213,19 @@ def test_migrate_check_applies_portability_before_queuing_versioned_prompt(confi
     assert install.migrate_check(config) is None
     migration = files("brain").joinpath("migrations/0.205.0.md").read_text()
     assert len(migration.split()) < 300 and "unattended: true" in migration
+
+
+def test_migrate_service_paths_to_home(config):
+    services = config.repo.parent / "services"
+    services.mkdir()
+    spec = {"command": ["python3", "/srv/demiurge/agents/amicus/services/launch.py", "/srv/demiurge/agents/tars/x"],
+            "cwd": "/Users/owner/agents/amicus", "env": {"AGENT_HOME": "/srv/demiurge/agents/amicus", "MODE": "x"},
+            "port": True}
+    (services / "site.json").write_text(json.dumps(spec))
+    (services / "broken.json").write_text("{")
+    report = portability.migrate(config)
+    assert report == [f"{services / 'site.json'}: workspace paths -> ~"]
+    assert json.loads((services / "site.json").read_text()) == {
+        "command": ["python3", "~/services/launch.py", "/srv/demiurge/agents/tars/x"],
+        "cwd": "~", "env": {"AGENT_HOME": "~", "MODE": "x"}, "port": True}
+    assert portability.migrate(config) == []
