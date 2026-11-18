@@ -495,6 +495,14 @@ def cmd_loops(args):
             return
         if args.outcome or args.because is not None:
             raise ValueError("--outcome and --because go with --close")
+        if args.claim is not None:
+            item = loops.claim(config, args.claim, now)
+            print(f"claimed until closed or released: {item.id} · {item.text}")
+            return
+        if args.release is not None:
+            item = loops.release(config, args.release)
+            print(f"released: {item.id} · {item.text}")
+            return
     except ValueError as error:
         raise SystemExit(f"brain loops: {error}")
     due = loops.stale(config, now) if args.stale else loops.due(config, now)
@@ -2165,6 +2173,8 @@ def main(argv=None):
     mode = s.add_mutually_exclusive_group()
     mode.add_argument("--json", action="store_true"); mode.add_argument("--add", metavar="TEXT")
     mode.add_argument("--close", metavar="ID_OR_TEXT")
+    mode.add_argument("--claim", metavar="ID_OR_TEXT", help="take a loop before acting on it, so no other run acts on it too")
+    mode.add_argument("--release", metavar="ID_OR_TEXT", help="give back a claimed loop when acting on it failed")
     s.add_argument("--due", nargs="?", const=True, metavar="DATE", help="only due loops, or a due date with --add")
     s.add_argument("--closed", action="store_true", help="with --json: include recently closed loops")
     s.add_argument("--quiet", action="store_true", help="print nothing; exit 1 when nothing is due, 0 otherwise")
