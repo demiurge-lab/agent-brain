@@ -201,7 +201,7 @@ def _matches_routine(config: Config, hub: dict, name: str) -> bool:
     responsibility = hub["responsibility"]
     if "id" in responsibility:
         return name.casefold() in {routine.casefold() for routine in responsibility["routines"]}
-    return name.casefold() in (responsibility["records"].casefold(),
+    return name.casefold() in (PurePosixPath(responsibility["records"]).name.casefold(),
                                (responsibility["skill"] or "").removeprefix(config.skill_prefix).casefold())
 
 
@@ -225,7 +225,7 @@ def _routines(config: Config, hubs: list[dict], rows: list[tuple[str, str, int, 
         responsibility = hub["responsibility"]
         if "id" not in responsibility and any(_matches_routine(config, hub, routine["name"]) for routine in out.values()):
             continue
-        for name in responsibility.get("routines", [responsibility["records"]]):
+        for name in responsibility.get("routines", [PurePosixPath(responsibility["records"]).name]):
             if name.casefold() not in out:
                 out[name.casefold()] = {"name": name, "skill": responsibility["skill"], "hub": hub["title"], "ledger": None}
     return sorted(out.values(), key=lambda routine: (routine["name"].casefold(), routine["name"]))

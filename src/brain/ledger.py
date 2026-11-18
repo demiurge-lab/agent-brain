@@ -74,7 +74,7 @@ def routine_for_skill(config: Config, skill: str) -> str:
     vault = Vault(config.vault_path)
     for note in vault.notes.values():
         if note.data.get("skill") == skill and note.data.get("records"):
-            return str(note.data["records"])
+            return Path(note.data["records"]).name
     return skill.removeprefix(config.skill_prefix)
 
 

@@ -1,6 +1,7 @@
 """Responsibility ids, schedule ownership and state compatibility."""
 import io
 import json
+import os
 import shutil
 from contextlib import contextmanager
 from dataclasses import replace
@@ -34,6 +35,9 @@ def hub(root, title, **data):
     ("123 Numbers", {}, "123-numbers"),
     ("A" * 70, {}, "a" * 63),
     ("A" * 62 + " and more", {}, "a" * 62),
+    ("Ignored", {"records": "/Users/owner/agents/orphan/records/chicken-alerts"}, "chicken-alerts"),
+    ("Ignored", {"records": "../records/chicken-alerts"}, "chicken-alerts"),
+    ("Ignored", {"records": "../../records/chicken-alerts"}, "chicken-alerts"),
 ])
 def test_identity_derivation_and_normalization(vault, title, data, expected):
     (vault.parent / "brain.toml").write_text('[brain]\nskill_prefix="own-"\n')
@@ -591,7 +595,8 @@ def test_adopt_repo_workdir_is_allowed_and_pause_follows_renamed_source(vault):
 
 
 @pytest.mark.parametrize("hub_arg", ["title", "relative", "absolute"])
-def test_adopt_hub_keeps_id_records_frontmatter_and_replaces_hub(vault, tmp_path, monkeypatch, capsys, hub_arg):
+@pytest.mark.parametrize("records_form", ["absolute", "name"])
+def test_adopt_hub_keeps_id_records_frontmatter_and_replaces_hub(vault, tmp_path, monkeypatch, capsys, hub_arg, records_form):
     monkeypatch.setenv("AGENT_HOME", str(tmp_path / "agent-home"))
     config = Config.load(vault)
     skill = own_skill(vault)
@@ -604,12 +609,14 @@ def test_adopt_hub_keeps_id_records_frontmatter_and_replaces_hub(vault, tmp_path
     snapshot.chmod(0o751)
     assets = {path.relative_to(skill.parent): (path.read_bytes(), path.stat().st_mode & 0o777)
               for path in (reference, snapshot)}
-    data = {"kind": "hub", "tier": "hot", "skill": skill.parent.name, "records": "trade-history",
+    records = install.records_path() / "trade-history"
+    relative_records = os.path.relpath(records, vault)
+    data = {"kind": "hub", "tier": "hot", "skill": skill.parent.name,
+            "records": str(records) if records_form == "absolute" else "trade-history",
             "work": "portfolio", "delivers": "Receipts", "asked_by": "Owner, dated request", "goal": "G-1", "role": "R-1",
             "uses": ["2026-11-10"], "uses_inferred": [], "activation": "night", "custom": {"keep": [1, 2]}, "title": "Old title"}
     path = vault / "Trade.jobs.md"
     fm.write(path, data, "# Trade jobs\n\nKeep the original instructions.\n")
-    records = install.records_path() / "trade-history"
     records.mkdir(parents=True)
     (records / "receipt.md").write_text("Old receipt.\n")
     script = install.scripts_path() / "trades.sh"
@@ -626,7 +633,7 @@ def test_adopt_hub_keeps_id_records_frontmatter_and_replaces_hub(vault, tmp_path
     target = vault / "Responsibilities/trade-history/RESPONSIBILITY.md"
     adopted_data, body = fm.read(target)
     assert adopted_data["version"] == 1 and adopted_data["title"] == "Trade.jobs"
-    assert adopted_data["records"] == str(records.resolve()) and tree(records) == before_records
+    assert adopted_data["records"] == relative_records and tree(records) == before_records
     for key in ("work", "delivers", "asked_by", "goal", "role", "custom"):
         assert adopted_data[key] == data[key]
     assert not {"kind", "tier", "skill", *nightly.NIGHT_KEYS} & adopted_data.keys()
@@ -642,12 +649,13 @@ def test_adopt_hub_keeps_id_records_frontmatter_and_replaces_hub(vault, tmp_path
     loaded = Vault(vault)
     entries = responsibilities.discover(loaded)
     assert len(entries) == 1 and entries[0]["id"] == "trade-history"
-    assert entries[0]["records"] == str(records.resolve())
+    assert entries[0]["records"] == relative_records
     actual = schedule.load(config)
     assert set(actual) == {"engine", "trade-history", "trade-history-2"}
     assert not actual["trade-history"].enabled and actual["trade-history-2"].enabled
     assert all(actual[name].responsibility == "trade-history" for name in actual if name != "engine")
-    assert str(records.resolve()) in actual["trade-history"].prompt
+    assert os.path.relpath(records, config.repo) in actual["trade-history"].prompt
+    assert str(records.resolve()) not in actual["trade-history"].prompt
     output = capsys.readouterr().out
     for removed in (skill, reference, snapshot):
         assert f"removed {removed}" in output

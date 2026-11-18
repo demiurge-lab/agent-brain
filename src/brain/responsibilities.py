@@ -1,6 +1,7 @@
 """Responsibility identities and ownership of declared routines."""
 from __future__ import annotations
 
+import os
 import re
 import shutil
 from contextlib import nullcontext
@@ -25,7 +26,8 @@ STATUS_MIGRATION = "responsibility-status-0.185.0"
 
 
 def identity(config: Config, note: Note) -> str:
-    value = note.data.get("records") or (note.data.get("skill") or "").removeprefix(config.skill_prefix) or note.stem
+    records = note.data.get("records")
+    value = PurePosixPath(records).name if records else (note.data.get("skill") or "").removeprefix(config.skill_prefix) or note.stem
     return re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")[:63].rstrip("-")
 
 
@@ -70,7 +72,7 @@ def derive(config: Config, entry: dict) -> dict[str, Routine]:
         base = PurePosixPath(config.vault_path.as_posix())
 
     def repo_path(relative) -> str:
-        return (base / relative).as_posix()
+        return os.path.normpath(base / relative)
 
     from . import schedule
     ident = entry["id"]
@@ -401,7 +403,7 @@ def adopt(config: Config, names: list[str], *, hub: str | None = None, title: st
             if records:
                 location = install.records_path() / records
                 if location.is_dir():
-                    data["records"] = str(location.resolve())
+                    data["records"] = os.path.relpath(location, config.vault_path)
             body = old_hub.body.rstrip() + "\n\n## Method\n\n" + fm.read(own_folder / "SKILL.md")[1].strip() + "\n"
         else:
             if not names:
