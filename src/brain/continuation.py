@@ -396,6 +396,9 @@ def instructions(config: Config, task: tasks.Task, earlier: list[dict] | None = 
         parts.append(prefix)
     if row.get("notice"):
         parts.append(f"When the last chunk was counted: {row['notice']}.")
+    said = row.get("instruction") or {}
+    if said.get("text") and said.get("at", "") > row.get("at", ""):
+        parts.append(f"{config.human_name} wrote about this task after the last chunk: \"{said['text']}\"")
     entries = tasks.all_tasks(config) if entries is None else entries
     if block := taken_off(config, task, entries):
         parts.append(block)

@@ -357,3 +357,18 @@ def test_circling_keeps_a_generic_ask(worker, capsys):
     config, _ = worker
     verdict(config, capsys, "circling", "drifting", "--ask", "Do you approve the proposed action?")
     assert context(config, capsys)["lastReview"]["verdict"] == "circling"
+
+
+def test_a_waiting_task_carries_the_owner_words_since_its_last_chunk(worker, capsys):
+    config, clock = worker
+    count(config, capsys, clock)
+    brain_cli.main(["task", "T-001", "set", "--state", "waiting_for_owner", "--ask", "Post them now?", "--why", "they go out in your name",
+                    "--vault", str(config.vault_path)])
+    capsys.readouterr()
+    clock[0] += timedelta(minutes=5)
+    cli(config, capsys, "--engaged", "T-001", "--instruction", "go ahead and post them now")
+    words = 'wrote about this task after the last chunk: "go ahead and post them now"'
+    assert words in cli(config, capsys, "T-001")
+    assert words in json.loads(cli(config, capsys, "T-001", "--json"))["checkpoint"]
+    count(config, capsys, clock)
+    assert words not in (json.loads(cli(config, capsys, "T-001", "--json"))["checkpoint"] or "")
