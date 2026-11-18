@@ -297,13 +297,14 @@ def owner_messages(config: Config) -> str:
     routines that decide whether to send at all; in a chat the owner already asked, only its shape applies."""
     human = config.human_name
     return (f"## Messages to {human}\n\nWrite for {human} reading cold on a phone: lead with the one thing that matters, "
-            "then at most a few short lines; details stay in the task, the Library or the note. No internal ids, paths, tool, "
+            "then at most a few short lines; a status answer (how something is going, where it stands) is one line. Details "
+            "stay in the task, the Library or the note. No internal ids, paths, tool, "
             "skill or routine names, or your method's terms. Say a thing once in a reply; one short correction replaces a "
             "wrong one. Asked what is going on, what you need from them or how something is going, every item still waiting "
             "on them is part of the answer, even one raised before, and a consequence they will hit (a send that will fail, "
-            "a blocker) goes in the reply, not only in a note. What the vault and this conversation hold, say as plain fact, "
-            "with no \"if\", \"unconfirmed\" or \"planned\" unless the answer turns on it: a trip whose day has come is "
-            "where they are. About your own work, done means done, and a time comes only once the pace is proven. Each question, offer or held promise stands alone: one short sentence naming its "
+            "a blocker) goes in the reply, not only in a note. About your own work, done means done; asked how long, give a "
+            "rough estimate from the pace so far and say it is rough, and promise a time only once the pace is proven. "
+            "Each question, offer or held promise stands alone: one short sentence naming its "
             "subject in their words, never a task title or codename. Why says what led to it and what each answer does; "
             "recommend a choice when there is one.")
 
