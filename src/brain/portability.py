@@ -84,6 +84,32 @@ def _schedule_paths(config: Config) -> list[str]:
     return report
 
 
+def _service_paths() -> list[str]:
+    home = runtime.home()
+    workspace = re.compile(r"^(?:/Users/[^/\s]+|/home/[^/\s]+|/srv/demiurge)(?:/\.hermes/profiles|/agents)?/"
+                           + re.escape(home.name) + r"(?=/|$)")
+    report = []
+    for path in sorted((home / "services").glob("*.json")):
+        try:
+            spec = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if not isinstance(spec, dict):
+            continue
+        portable = lambda value: workspace.sub("~", value) if isinstance(value, str) else value
+        changed = dict(spec)
+        if isinstance(spec.get("command"), list):
+            changed["command"] = [portable(part) for part in spec["command"]]
+        if "cwd" in spec:
+            changed["cwd"] = portable(spec["cwd"])
+        if isinstance(spec.get("env"), dict):
+            changed["env"] = {key: portable(value) for key, value in spec["env"].items()}
+        if changed != spec:
+            fm.write_text(path, (json.dumps(changed, indent=2, ensure_ascii=False) + "\n").encode())
+            report.append(f"{path}: workspace paths -> ~")
+    return report
+
+
 def migrate(config: Config) -> list[str]:
     report = []
     with vault_lock(config):
@@ -101,4 +127,5 @@ def migrate(config: Config) -> list[str]:
             note.save()
             report.append(f"{entry['hub']}: records {records} -> {note.data['records']}")
         report.extend(_schedule_paths(config))
+    report.extend(_service_paths())
     return report
