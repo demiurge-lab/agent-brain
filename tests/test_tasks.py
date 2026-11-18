@@ -308,3 +308,13 @@ def test_closing_a_warm_task_closes_its_register_line_too(vault, done):
     closed = next(t for t in tasks.load_tasks(config)[0] + tasks.load_tasks(config)[1] if t.tid == task.tid)
     assert not tasks.is_open(closed)
     assert ("completed" if done else "cancelled") in fm.read(register)[1].split(f"### {task.tid}")[1].split("\n")[1]
+
+
+def test_task_new_outside_a_vault_writes_nothing(tmp_path, monkeypatch, capsys):
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.chdir(home)
+    with pytest.raises(SystemExit):
+        cli.main(["task", "new", "Query report", "--source", "owner in chat"])
+    assert "is not a vault" in capsys.readouterr().err
+    assert list(home.iterdir()) == []

@@ -465,6 +465,8 @@ def next_id(config: Config) -> str:
 
 def append_task(config: Config, task: Task) -> None:
     """Append a full entry to the register; the caller holds the vault lock."""
+    if not config.vault_path.is_dir():
+        raise ValueError(f"{config.vault_path} is not a vault: run brain from inside the vault, or pass --vault")
     register = config.vault_path / config.agent("Tasks.md")
     data, body = fm.read(register) if register.exists() else ({"kind": "orientation"}, "# Tasks\n\n## Active work\n")
     register.parent.mkdir(parents=True, exist_ok=True)
