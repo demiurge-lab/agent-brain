@@ -185,6 +185,58 @@ def test_met_begins_next_chunk_instructions_and_clears_after_one_chunk_or_close(
     assert context(config, capsys)["lastReview"]["verdict"] == "met"
 
 
+def test_met_reviews_after_the_close_out_chunk_and_a_second_met_asks_the_owner(worker, capsys):
+    config, clock = worker
+    verdict(config, capsys, "met", "the three finalists are visible")
+    assert due(config, capsys)[0]["reviewDue"] is False
+    count(config, capsys, clock)
+    assert due(config, capsys)[0]["reviewDue"] is True
+    verdict(config, capsys, "met", "the finalists are still visible; the new map is extra")
+    assert task(config).task_state == "waiting_for_owner"
+    assert "close_out" not in continuation._progress(config)["T-001"]
+    assert due(config, capsys) == []
+    [question] = needs.items(config, config.today())
+    assert question.text == "Is Sample finished?"
+
+
+def test_a_second_met_still_asks_when_the_title_is_too_long_for_an_ask(worker, capsys):
+    config, clock = worker
+    tasks.set_fields(config, "T-001", config.today(), title=" ".join(["Publish"] * 30))
+    verdict(config, capsys, "met", "T-001 has all finalists published")
+    count(config, capsys, clock)
+    verdict(config, capsys, "met", "T-001 has all finalists published")
+    assert task(config).task_state == "waiting_for_owner"
+    assert needs.items(config, config.today())[0].text == "Is this task finished?"
+
+
+def test_a_dismissed_finish_question_is_not_asked_again(worker, capsys):
+    config, clock = worker
+    verdict(config, capsys, "met", "the three finalists are visible")
+    count(config, capsys, clock)
+    verdict(config, capsys, "met", "the three finalists are visible")
+    [question] = needs.items(config, config.today())
+    brain_cli.main(["needs-you", "--vault", str(config.vault_path), "--dismiss", question.id, "--reason", "no"])
+    capsys.readouterr()
+    tasks.set_fields(config, "T-001", config.today(), state="in_progress")
+    verdict(config, capsys, "met", "the three finalists are visible")
+    count(config, capsys, clock)
+    verdict(config, capsys, "met", "the three finalists are visible")
+    assert task(config).task_state == "in_progress"
+    assert needs.items(config, config.today()) == []
+    assert due(config, capsys)[0]["reviewDue"] is False
+
+
+def test_owner_engagement_after_met_restores_the_normal_cadence(worker, capsys):
+    config, clock = worker
+    verdict(config, capsys, "met", "the three finalists are visible")
+    count(config, capsys, clock)
+    cli(config, capsys, "--engaged", "T-001", "--instruction", "Add a fourth finalist")
+    count(config, capsys, clock)
+    assert due(config, capsys)[0]["reviewDue"] is False
+    verdict(config, capsys, "met", "four finalists are visible")
+    assert task(config).task_state == "in_progress"
+
+
 def test_circling_nonblocking_ask_halves_remaining_budget_and_second_review_waits(worker, capsys):
     config, clock = worker
     count(config, capsys, clock, 4)

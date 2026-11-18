@@ -12,7 +12,7 @@ from contextlib import contextmanager
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from . import fm, needs, runtime, tasks
+from . import fm, items, needs, runtime, tasks
 from .config import DAILY_CHUNKS, Config
 from .lock import vault_lock
 
@@ -158,6 +158,7 @@ def mark_engaged(config: Config, tid: str, instruction: str | None = None, by: s
         row = rows.setdefault(tid, {})
         row["chunks_since_review"] = 0
         row.pop("circling", None)
+        row.pop("met", None)
         row.pop("budget_cap", None)
         row["quiet"] = 0
         if instruction:
@@ -247,7 +248,8 @@ def status(config: Config, task, done: int, limit: int | None, due: bool) -> str
 def review_status(config: Config, tid: str) -> dict:
     row = _progress(config).get(tid, {})
     count = row.get("chunks_since_review", 0)
-    return {"reviewDue": count >= config.review_every, "chunksSinceReview": count,
+    # After a met verdict the close-out chunk is checked at once, so a worker that keeps building is caught early.
+    return {"reviewDue": count >= (1 if row.get("met") else config.review_every), "chunksSinceReview": count,
             "lastReview": row.get("last_review")}
 
 
@@ -392,7 +394,8 @@ def instructions(config: Config, task: tasks.Task, earlier: list[dict] | None = 
         prefix = (f"The reviewer judged the Delivers met ({close['reason']}). This chunk closes the task: "
                   f"verify the deliverable exactly as the Delivers says, then `brain task {task.tid} done` "
                   f"with the evidence and tell {config.human_name} once where the task reports, or, if it is not "
-                  f"actually met, say precisely what is missing with `brain task {task.tid} set --next …`.")
+                  f"actually met, say precisely what is missing with `brain task {task.tid} set --next …`. If the "
+                  f"reviewer still judges it met after this chunk, {config.human_name} is asked whether it is finished.")
         parts.append(prefix)
     if row.get("notice"):
         parts.append(f"When the last chunk was counted: {row['notice']}.")
@@ -462,6 +465,20 @@ def review_context(config: Config, tid: str) -> dict:
                 "budgetLeft": None if limit is None else max(0, limit - count)}
 
 
+def _finish_question(config: Config, task: tasks.Task) -> dict | None:
+    """The owner question for a task the reviewer judged met twice in a row, or None once the owner dismissed it."""
+    why = "It looked done at the last two checks, but work kept going. Yes closes it; naming what is missing keeps it going."
+    ask = " ".join(f"Is {task.title} finished?".replace("·", "-").split())   # as journal.add_ask stores it
+    try:
+        items.validate_owner_item(ask, why, kind="ask")
+    except ValueError:
+        ask = "Is this task finished?"
+    source = config.agent(f"Tasks#{task.tid}")
+    if needs.Item("ask", ask, "current", config.today().isoformat(), source).id in needs.dismissed_ids(config):
+        return None
+    return {"ask": ask, "why": why}
+
+
 def review(config: Config, tid: str, verdict: str, reason: str, *, ask: str | None = None,
            resume: str | None = None) -> dict:
     if verdict not in ("converging", "met", "circling", "stuck"):
@@ -500,12 +517,15 @@ def review(config: Config, tid: str, verdict: str, reason: str, *, ask: str | No
                     morning += timedelta(days=1)
                 tasks.set_fields(config, tid, config.today(), state="blocked",
                                  values={"blocker": reason, "resume": resume or morning.strftime("%Y-%m-%d %H:%M")})
+            elif verdict == "met" and row.get("met") and (question := _finish_question(config, task)):
+                tasks.set_fields(config, tid, config.today(), state="waiting_for_owner", values=question)
+            elif verdict == "met":
+                row["close_out"] = last
             row["circling"] = verdict == "circling"
+            row["met"] = verdict == "met" and not row.get("met")
             row["chunks_since_review"] = 0
             row["last_review"] = last
             row.pop("reviews", None)
-            if verdict == "met":
-                row["close_out"] = last
         return last
 
 
