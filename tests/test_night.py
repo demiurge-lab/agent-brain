@@ -42,6 +42,9 @@ def night_vault(repo):
     log = root / "agent/Sleep Log/2026-10.md"
     log.parent.mkdir()
     log.write_text("# Sleep log — 2026-10\n\nPRIOR_ENTRY\n")
+    for i, source in enumerate(("Hot Hub.md", "Warm Hub.md", "agent/Activity Log.md")):
+        data, body = fm.read(root / source)
+        fm.write(root / source, {**data, "matter_id": f"m-{i:08x}"}, body)
     return root, remote
 
 

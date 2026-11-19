@@ -1,10 +1,11 @@
 """A matter's kept state, and what the app is given for it."""
 import json
-from datetime import date, datetime
+import re
+from datetime import date, datetime, timedelta
 
 import pytest
 
-from brain import fm, journal, loops, matters, needs, record, state
+from brain import cli, fm, journal, loops, matters, needs, record, state
 from brain.config import Config
 from brain.tasks import Task
 from brain.vault import Vault
@@ -42,6 +43,17 @@ def test_a_stale_now_is_given_as_last():
 ])
 def test_phase(body, open_work, expected):
     assert matters.phase(matters.state(body, TODAY), TODAY, open_work) == expected
+
+
+@pytest.mark.parametrize("field", ["Now", "Last", "Soon"])
+@pytest.mark.parametrize("age, expected", [(7, "current"), (8, "fading"), (14, "fading")])
+def test_a_quiet_week_retires_a_matter(field, age, expected):
+    when = (TODAY - timedelta(days=age)).isoformat()
+    value = f"flights booked · {when}" if field == "Now" else f"{when} · flights booked"
+    kept = matters.state(f"## Now\n- **{field}:** {value}\n", TODAY)
+    assert matters.phase(kept, TODAY, False) == expected
+    if field == "Now":
+        assert (kept["now"] is not None) == (age == 7)
 
 
 def test_loops_keep_their_hub_line():
@@ -133,6 +145,7 @@ AT = datetime(2026, 11, 11, 14, 5)
 @pytest.fixture
 def owner(vault, monkeypatch, tmp_path):
     monkeypatch.setenv("AGENT_HOME", str(tmp_path / "home"))
+    monkeypatch.setattr(Config, "today", lambda self: TODAY)
     (tmp_path / "home").mkdir()
     fm.write(vault / "Lisbon trip.md", {"kind": "hub", "tier": "warm"}, "# Lisbon trip\n\n## Findings\n- Alfama is hilly.\n")
     return Config.load(vault)
@@ -164,6 +177,7 @@ def test_a_new_name_becomes_a_matter_on_its_second_sighting(owner):
     assert not (owner.vault_path / "Ohio move.md").exists()
     talk(owner, "Ohio move again", [{"name": "Ohio move", "now": "picked Columbus"}], at=datetime(2026, 11, 20, 9, 0))
     data, body = fm.read(owner.vault_path / "Ohio move.md")
+    assert re.fullmatch(r"m-[0-9a-f]{8}", data.pop("matter_id"))
     assert data == {"kind": "hub", "tier": "warm"}
     assert "- **Now:** picked Columbus · 2026-11-20" in body
 
@@ -257,7 +271,9 @@ def test_the_morning_sets_soon_from_the_calendar_and_opens_at_most_two(owner):
     matters.soon(owner, "Chem exam", date(2026, 11, 19), "final", TODAY, open_=True)
     with pytest.raises(ValueError, match="already opened today"):
         matters.soon(owner, "Move", date(2026, 11, 28), "movers", TODAY, open_=True)
-    assert fm.read(owner.vault_path / "Dentist.md")[0] == {"kind": "hub", "tier": "warm", "opened": "2026-11-11"}
+    data, _ = fm.read(owner.vault_path / "Dentist.md")
+    assert re.fullmatch(r"m-[0-9a-f]{8}", data.pop("matter_id"))
+    assert data == {"kind": "hub", "tier": "warm", "opened": "2026-11-11"}
     listed = matters.lines(owner, TODAY)
     assert "- Lisbon trip · soon 2026-11-20: fly to Lisbon" in listed and len(listed) == 3
 
@@ -279,6 +295,160 @@ def test_a_task_the_conversation_made_takes_its_matter(owner):
 def test_the_record_is_shown_where_each_matter_stands(owner):
     talk(owner, "Talked dates", [{"name": "Lisbon trip", "now": "flights booked"}])
     assert "- Lisbon trip · now: flights booked" in record.held(owner)
+
+
+@pytest.mark.parametrize("field", ["Now", "Last", "Soon", "Aside"])
+@pytest.mark.parametrize("age, recognised", [(60, True), (61, False)])
+def test_the_record_recognises_recently_quiet_matters(owner, capsys, field, age, recognised):
+    when = (TODAY - timedelta(days=age)).isoformat()
+    value = f"taking a break · {when}" if field == "Now" else f"{when} · taking a break"
+    fm.write(owner.vault_path / "Kayak trip.md", {"kind": "hub", "matter_id": "m-1234abcd"},
+             f"# Kayak trip\n## Now\n- **{field}:** {value}\n")
+    cli.main(["record-spec", "--vault", str(owner.vault_path), "--json"])
+    prompt = json.loads(capsys.readouterr().out)["held"]
+    assert ("Matters that went quiet lately; if one comes up again, name it exactly in about:\n- Kayak trip" in prompt) == recognised
+    assert "Matters in your owner's life" not in prompt
+    if recognised:
+        talk(owner, "Looked at paddling routes again", [{"name": "Kayak trip", "now": "planning a spring outing"}])
+        data, body = fm.read(owner.vault_path / "Kayak trip.md")
+        assert data["matter_id"] == "m-1234abcd"
+        kept = matters.state(body, TODAY)
+        assert matters.phase(kept, TODAY, False) == "current"
+        assert "aside" not in kept
+        assert [source for source in Vault(owner.vault_path).notes if "Kayak" in source] == ["Kayak trip.md"]
+
+
+def test_quiet_matters_use_the_latest_date_and_exclude_private_and_standing_notes(owner):
+    body = "# Paused\n## Now\n- **Last:** 2026-08-01 · planned\n- **Aside:** 2026-11-10 · paused\n"
+    for title, fields in (("Paused", {}), ("Private", {"tier": "private"}),
+                          ("Watch", {"skill": "brain-watch", "records": "receipts"})):
+        fm.write(owner.vault_path / f"{title}.md", {"kind": "hub", **fields}, body)
+    fm.write(owner.vault_path / "Active trip.md", {"kind": "hub"}, "# Active trip\n" + NOW)
+    fm.write(owner.vault_path / "Undated.md", {"kind": "hub"}, "# Undated\n## Now\n")
+    fm.write(owner.vault_path / "Working.md", {"kind": "hub"}, body)
+    fm.write(owner.vault_path / "agent/Tasks.md", {}, "# Tasks\n" + Task(
+        "T-001", "Pack gear", "- **Hub:** [[Working]]\n", {"state": "in_progress"}).render())
+    assert matters.listed(Vault(owner.vault_path), TODAY, quiet=True) == [("Paused", "Paused.md")]
+
+
+def test_quiet_matters_are_shown_most_recent_first_and_capped(owner):
+    for age in range(8, 30):
+        when = (TODAY - timedelta(days=age)).isoformat()
+        fm.write(owner.vault_path / f"Trip {age}.md", {"kind": "hub"},
+                 f"# Trip {age}\n## Now\n- **Last:** {when} · planned\n")
+    assert [title for title, _ in matters.listed(Vault(owner.vault_path), TODAY, quiet=True)] == [
+        f"Trip {age}" for age in range(8, 28)]
+
+
+def test_the_night_backfills_ids_once_and_state_keeps_them_after_a_move(owner, capsys):
+    root = owner.vault_path
+    fm.write(root / "Quiet.md", {"kind": "hub", "matter_id": "m-1234abcd"},
+             "# Quiet\n## Now\n- **Last:** 2026-08-01 · finished\n")
+    fm.write(root / "Watch.md", {"kind": "hub", "skill": "brain-watch", "records": "receipts"}, "# Watch\n")
+    fm.write(root / "Private.md", {"kind": "hub", "tier": "private"}, "# Private\n")
+    before = {hub["title"]: hub["id"] for hub in state.build(owner, TODAY)["hubs"]}
+    assert before["Lisbon trip"] is None and before["Quiet"] == "m-1234abcd"
+    argv = ["nightly", "--vault", str(root), "--date", TODAY.isoformat(), "--write", "--stage", "before"]
+    cli.main(argv)
+    capsys.readouterr()
+    data, body = fm.read(root / "Lisbon trip.md")
+    assert re.fullmatch(r"m-[0-9a-f]{8}", data["matter_id"])
+    assert fm.read(root / "Quiet.md")[0]["matter_id"] == "m-1234abcd"
+    assert all("matter_id" not in fm.read(root / source)[0] for source in ("Watch.md", "Private.md"))
+    saved = (root / "Lisbon trip.md").read_bytes(), (root / "Lisbon trip.md").stat().st_mtime_ns
+    cli.main(argv)
+    capsys.readouterr()
+    assert ((root / "Lisbon trip.md").read_bytes(), (root / "Lisbon trip.md").stat().st_mtime_ns) == saved
+    (root / "Trips").mkdir()
+    (root / "Lisbon trip.md").rename(root / "Trips/Spring holiday.md")
+    cli.main(argv)
+    capsys.readouterr()
+    moved = next(hub for hub in state.build(owner, TODAY)["hubs"] if hub["source"] == "Trips/Spring holiday.md")
+    assert moved["id"] == data["matter_id"]
+    assert fm.read(root / "Trips/Spring holiday.md")[1] == body
+
+
+@pytest.mark.parametrize("what", [None, "choosing a route"])
+def test_the_owner_opens_a_matter_without_a_second_sighting(owner, capsys, what):
+    talk(owner, "Mentioned paddling", [{"name": "Kayak trip", "now": None}])
+    sightings = matters._sightings_path().read_bytes()
+    argv = ["matters", "--vault", str(owner.vault_path), "--open", "Kayak trip", "--json"]
+    cli.main(argv + (["--what", what] if what else []))
+    opened = json.loads(capsys.readouterr().out)
+    assert opened["source"] == "Kayak trip.md" and opened["opened"] is True
+    assert re.fullmatch(r"m-[0-9a-f]{8}", opened["id"])
+    path = owner.vault_path / opened["source"]
+    kept = matters.state(fm.read(path)[1], TODAY)
+    assert kept["now"] == ({"text": what, "date": TODAY.isoformat()} if what else None)
+    assert matters.phase(kept, TODAY, False) == "current"
+    assert matters._sightings_path().read_bytes() == sightings
+    saved = path.read_bytes(), path.stat().st_mtime_ns
+    cli.main(["matters", "--vault", str(owner.vault_path), "--open", "kayak TRIP", "--what", "replace this", "--json"])
+    assert json.loads(capsys.readouterr().out) == {**opened, "opened": False}
+    assert (path.read_bytes(), path.stat().st_mtime_ns) == saved
+    assert next(hub for hub in state.build(owner, TODAY)["hubs"] if hub["title"] == "Kayak trip")["id"] == opened["id"]
+
+
+def test_opening_a_live_matter_only_backfills_its_id(owner, capsys):
+    talk(owner, "Booked flights", [{"name": "Lisbon trip", "now": "flights booked"}])
+    path = owner.vault_path / "Lisbon trip.md"
+    data = fm.read(path)[0]
+    fm.write(path, {key: value for key, value in data.items() if key != "matter_id"}, fm.read(path)[1])
+    body = fm.read(path)[1]
+    cli.main(["matters", "--vault", str(owner.vault_path), "--open", "Lisbon trip.md", "--what", "ignored"])
+    assert capsys.readouterr().out == "Lisbon trip.md: already a matter\n"
+    data, kept = fm.read(path)
+    assert re.fullmatch(r"m-[0-9a-f]{8}", data["matter_id"])
+    assert kept == body
+
+
+@pytest.mark.parametrize("what, as_json", [(None, False), ("wait until spring", True)])
+def test_the_owner_sets_a_matter_aside(owner, capsys, what, as_json):
+    talk(owner, "Booked flights", [{"name": "Lisbon trip", "now": "flights booked", "soon": "2026-11-20 · fly"}])
+    argv = ["matters", "--vault", str(owner.vault_path), "--aside", "lisbon TRIP"]
+    cli.main(argv + (["--what", what] if what else []) + (["--json"] if as_json else []))
+    output = capsys.readouterr().out
+    reason = what or "set aside by the owner"
+    if as_json:
+        assert json.loads(output) == {"source": "Lisbon trip.md", "id": None, "aside": reason}
+    else:
+        assert output == f"Lisbon trip.md: set aside · {reason}\n"
+    kept = matters.state(fm.read(owner.vault_path / "Lisbon trip.md")[1], TODAY)
+    assert kept["now"] is None and kept["soon"] is None
+    assert kept["aside"] == {"date": TODAY.isoformat(), "text": reason}
+    assert matters.phase(kept, TODAY, False) == "fading"
+
+
+@pytest.mark.parametrize("name, data", [("Missing", None), ("Private", {"kind": "hub", "tier": "private"}),
+                                      ("Watch", {"kind": "hub", "skill": "brain-watch", "records": "receipts"}),
+                                      ("Draft", {"kind": "draft"})])
+def test_aside_rejects_names_that_are_not_matters(owner, capsys, name, data):
+    if data:
+        fm.write(owner.vault_path / f"{name}.md", data, f"# {name}\n")
+    with pytest.raises(SystemExit) as error:
+        cli.main(["matters", "--vault", str(owner.vault_path), "--aside", name, "--json"])
+    assert error.value.code == 1
+    assert f"no matter named {name!r}" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("open_first", [False, True])
+def test_bare_open_still_modifies_soon(owner, capsys, open_first):
+    argv = ["matters", "--vault", str(owner.vault_path)]
+    event = ["--soon", "Kayak trip", "--date", "2026-11-20", "--what", "paddle downstream"]
+    cli.main(argv + (["--open"] + event if open_first else event + ["--open"]))
+    assert capsys.readouterr().out == "Kayak trip.md: soon 2026-11-20 · paddle downstream\n"
+    data, body = fm.read(owner.vault_path / "Kayak trip.md")
+    assert re.fullmatch(r"m-[0-9a-f]{8}", data["matter_id"])
+    assert data["opened"] == TODAY.isoformat()
+    assert matters.state(body, TODAY)["soon"] == {"text": "paddle downstream", "date": "2026-11-20"}
+
+
+@pytest.mark.parametrize("args, message", [(["--open"], "--open needs a matter name"),
+    (["--open", "Kayak", "--soon", "Lisbon trip"], "pass --open without a name"),
+    (["--open", "Kayak", "--aside", "Lisbon trip"], "use either --open or --aside")])
+def test_ambiguous_open_commands_fail_clearly(owner, args, message):
+    with pytest.raises(SystemExit, match=message):
+        cli.main(["matters", "--vault", str(owner.vault_path), *args])
 
 
 def test_a_matter_set_aside_fades_until_it_comes_up_again(owner):
@@ -331,13 +501,25 @@ def test_the_evening_is_offered_each_one_off_event_once(owner, monkeypatch):
 
 
 def test_a_new_name_holding_a_matters_title_lands_on_it(owner):
-    fm.write(owner.vault_path / "Demiurge.md", {"kind": "hub"}, "# Demiurge\n")
-    fm.write(owner.vault_path / "Harbor.md", {"kind": "hub"}, "# Harbor\n")
-    fm.write(owner.vault_path / "Harbor Demiurge.md", {"kind": "hub"}, "# Harbor Demiurge\n")
-    talk(owner, "Sketched the runtime API", [{"name": "Demiurge runtime API", "now": "API shape agreed"}])
-    assert "- **Now:** API shape agreed" in fm.read(owner.vault_path / "Demiurge.md")[1]
-    assert not (owner.vault_path / "Demiurge runtime API.md").exists()
-    talk(owner, "Harbor rollout", [{"name": "Demiurge for Harbor rollout", "now": "pilot set"}])
-    assert "pilot set" in fm.read(owner.vault_path / "Harbor Demiurge.md")[1]
+    fm.write(owner.vault_path / "Garden.md", {"kind": "hub"}, "# Garden\n")
+    fm.write(owner.vault_path / "House.md", {"kind": "hub"}, "# House\n")
+    fm.write(owner.vault_path / "House Garden.md", {"kind": "hub"}, "# House Garden\n")
+    talk(owner, "Sketched the irrigation plan", [{"name": "Garden irrigation plan", "now": "layout agreed"}])
+    assert "- **Now:** layout agreed" in fm.read(owner.vault_path / "Garden.md")[1]
+    assert not (owner.vault_path / "Garden irrigation plan.md").exists()
+    talk(owner, "House planting", [{"name": "Garden for House planting", "now": "beds ready"}])
+    assert "beds ready" in fm.read(owner.vault_path / "House Garden.md")[1]
     talk(owner, "Kayak", [{"name": "Kayak trip", "now": "looking"}])
     assert not (owner.vault_path / "Kayak trip.md").exists()
+
+
+def test_opening_a_matter_set_aside_brings_it_back(owner, capsys):
+    talk(owner, "Booked flights", [{"name": "Lisbon trip", "now": "flights booked"}])
+    cli.main(["matters", "--vault", str(owner.vault_path), "--aside", "Lisbon trip"])
+    capsys.readouterr()
+    path = owner.vault_path / "Lisbon trip.md"
+    assert matters.phase(matters.state(fm.read(path)[1], TODAY), TODAY, False) == "fading"
+    cli.main(["matters", "--vault", str(owner.vault_path), "--open", "Lisbon trip", "--json"])
+    out = json.loads(capsys.readouterr().out)
+    assert out["opened"] is False and out["revived"] is True
+    assert matters.phase(matters.state(fm.read(path)[1], TODAY), TODAY, False) == "current"

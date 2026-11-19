@@ -141,5 +141,7 @@ def held(config: Config) -> str:
                 ("Open loops; close these when finished, do not add them again:", open_loops),
                 ("Open tasks; each carries its own follow-up, so add no loop for their work or their reports:", open_tasks),
                 ("Matters in your owner's life; name these exactly in about:", shown),
+                ("Matters that went quiet lately; if one comes up again, name it exactly in about:",
+                 matters.held(config, config.today(), quiet=True)),
                 ("Fields of work you have learned; name these exactly in learned:", learned.index(config)))
     return "".join(f"\n{heading}\n" + "\n".join(lines) for heading, lines in sections if lines)
