@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, timedelta
 
-from . import health, install, roles
+from . import fm, health, install, roles
 from .config import Config
 
 TRIGGERS = ("night", "run-failed", "upgrade", "turn-error", "commit")
@@ -11,6 +11,8 @@ COOLDOWN = timedelta(hours=3)
 REPEAT_NIGHTS = 3
 FORGET = timedelta(days=30)
 NIGHT_ONLY = {"hygiene-unfixed"}
+OUTCOMES = ("fixed", "left", "human")
+BLAME = timedelta(hours=24)
 
 
 def _state_path(config: Config):
@@ -34,6 +36,26 @@ def _fix(config: Config, found: dict) -> str:
         push(config.vault_path)
         return f"{found['key']}: pushed"
     return ""
+
+
+def _blame(config: Config, now: datetime, new: set[str]) -> dict[str, str]:
+    last = (health.git(config.repo, "log", "-1", "--grep=^doctor(", "--format=%h %cI") or "").split()
+    if not new or len(last) != 2:
+        return {}
+    at = datetime.fromisoformat(last[1])
+    since = (now if now.tzinfo else now.astimezone()) - at
+    return {key: last[0] for key in new} if timedelta(0) <= since < BLAME else {}
+
+
+def log(config: Config, key: str, outcome: str, note: str) -> str:
+    path = config.vault_path / config.runtime_dir / "Doctor.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if not path.exists():
+        fm.write_text(path, "---\nkind: log\n---\n# Doctor\n\n")
+    line = f"- {config.now():%Y-%m-%d %H:%M} · {key} · {outcome} · {' '.join(note.split())}"
+    with path.open("a", encoding="utf-8") as stream:
+        stream.write(line + "\n")
+    return line
 
 
 def _day_gate(state: dict, handable: list[dict], now: datetime) -> list[dict]:
@@ -62,6 +84,7 @@ def check(config: Config, trigger: str = "night", now: datetime | None = None) -
     state = _load(config)
     keys: dict = state.setdefault("keys", {})
     present = {item["key"] for item in found}
+    blamed = _blame(config, now, present - set(keys))
     for item in found:
         keys.setdefault(item["key"], {"handed": [], "reported": False})["seen"] = today
     for key in set(keys) - present:
@@ -70,11 +93,13 @@ def check(config: Config, trigger: str = "night", now: datetime | None = None) -
         del keys[key]
 
     for_doctor = [item for item in found if item["kind"] != "human"]
-    repeat = {item["key"] for item in for_doctor if len(set(keys[item["key"]]["handed"]) - {today}) >= REPEAT_NIGHTS}
+    repeat = {item["key"] for item in for_doctor
+              if item["key"] in blamed or len(set(keys[item["key"]]["handed"]) - {today}) >= REPEAT_NIGHTS}
     handable = [item for item in for_doctor if item["key"] not in repeat]
     if trigger != "night":
         handable = _day_gate(state, handable, now)
-    report = [dict(item, repeat=item["key"] in repeat) for item in found
+    report = [dict(item, repeat=item["key"] in repeat, **({"after": blamed[item["key"]]} if item["key"] in blamed else {}))
+              for item in found
               if (item["kind"] == "human" or item["key"] in repeat) and not keys[item["key"]]["reported"]]
 
     for item in handable:
