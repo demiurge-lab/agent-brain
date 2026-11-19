@@ -1,6 +1,6 @@
 """Health report: stages from commit subjects, engine state, counts; never note contents."""
 import subprocess
-from datetime import date
+from datetime import date, timedelta
 
 from brain import cli, fm, health
 from brain.config import Config
@@ -76,9 +76,44 @@ def test_a_vault_that_does_not_know_whose_it_is_says_so(tmp_path, capsys):
     root = repo_vault(tmp_path)
     data = health.report(Config.load(root), date(2026, 10, 6))
     assert data["setup"] == ["no owner_user_ids, so its owner is treated as a stranger",
+                             "no operator_user_ids, so problems only a person can fix reach no one",
                              "human_name is still the template's 'Human'", "agent_name is still the template's 'Agent'"]
-    assert "Setup: no owner_user_ids, so its owner is treated as a stranger; human_name" in health.render(data)
+    assert "Setup: no owner_user_ids, so its owner is treated as a stranger; no operator_user_ids" in health.render(data)
     (tmp_path / "brain.toml").write_text('[brain]\nvault = "memory"\nhuman_name = "Aamir"\nagent_name = "Iqbal"\n'
-                                         'owner_user_ids = ["demiurge:k57"]\n')
+                                         'owner_user_ids = ["demiurge:k57"]\noperator_user_ids = ["demiurge:op1"]\n')
     data = health.report(Config.load(root), date(2026, 10, 6))
     assert data["setup"] == [] and "Setup:" not in health.render(data)
+
+
+def test_issues_carry_class_stable_key_and_kind(tmp_path, monkeypatch):
+    root = repo_vault(tmp_path)
+    home = tmp_path / "home"
+    (home / "harness").mkdir(parents=True)
+    (home / "harness/jobs.json").write_text('{"jobs": [{"id": "j1", "name": "evening", "lastStatus": "failed", '
+                                             '"lastRunAt": "2026-10-08T20:00:00", "lastError": "boom"}, '
+                                             '{"id": "j2", "name": "watch", "lastStatus": "ok"}]}')
+    monkeypatch.setenv("AGENT_HOME", str(home))
+    git(tmp_path, "add", ".")
+    git(tmp_path, "commit", "-q", "-m", "state")
+    later = date.today() + timedelta(days=3)
+    data = health.report(Config.load(root), later)
+    by_class = {}
+    for found in data["issues"]:
+        assert set(found) == {"class", "key", "kind", "text"} and found["key"].startswith(found["class"] + ":")
+        by_class.setdefault(found["class"], []).append(found)
+    assert {found["kind"] for found in by_class["setup"]} == {"human"}
+    assert {found["key"] for found in by_class["stage-stale"]} >= {"stage-stale:sleep1", "stage-stale:image"}
+    assert by_class["routine-failing"] == [{"class": "routine-failing", "key": "routine-failing:evening", "kind": "judgment",
+                                            "text": "routine evening failed at 2026-10-08T20:00:00: boom"}]
+    assert [found["key"] for found in by_class["migration-stuck"]] == ["migration-stuck:0.1.0"]
+    again = health.report(Config.load(root), later)
+    assert [found["key"] for found in again["issues"]] == [found["key"] for found in data["issues"]]
+    line = next(line for line in health.render(data).splitlines() if line.startswith("Issues: "))
+    assert "routine-failing" in line and "boom" not in line
+
+
+def test_a_vault_whose_night_never_ran_is_not_stale(tmp_path, monkeypatch):
+    monkeypatch.delenv("AGENT_HOME", raising=False)
+    root = make_vault(tmp_path / "memory")
+    data = health.report(Config.load(root), date(2026, 10, 6))
+    assert not any(found["class"] in ("stage-stale", "routine-failing", "unpushed") for found in data["issues"])
