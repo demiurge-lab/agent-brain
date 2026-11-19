@@ -1816,6 +1816,12 @@ def cmd_portrait(args):
 
 
 def cmd_health(args):
+    if args.setup:
+        # The harness writes the owner's id the first time they speak, so a new intellect is set up before it has one.
+        problems = [problem for problem in health.setup(args.config) if not problem.startswith("no owner_user_ids")]
+        for problem in problems:
+            print(problem)
+        raise SystemExit(1 if problems else 0)
     data = health.report(args.config, date.fromisoformat(args.date) if args.date else None)
     if args.write:
         print(health.write(args.config, data))
@@ -2522,6 +2528,7 @@ def main(argv=None):
     s.set_defaults(fn=cmd_state)
     s = sub.add_parser("health", parents=[vault]); s.add_argument("--date")
     s.add_argument("--json", action="store_true"); s.add_argument("--write", action="store_true", help="write <runtime_dir>/health.md")
+    s.add_argument("--setup", action="store_true", help="print setup problems and exit 1 if any; setup scripts end with it")
     s.set_defaults(fn=cmd_health)
     s = sub.add_parser("prefetch", help="what goes before an owner's message: the people it names and the notes that match, by [context]",
                        parents=[vault])

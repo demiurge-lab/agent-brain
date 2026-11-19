@@ -117,3 +117,17 @@ def test_a_vault_whose_night_never_ran_is_not_stale(tmp_path, monkeypatch):
     root = make_vault(tmp_path / "memory")
     data = health.report(Config.load(root), date(2026, 10, 6))
     assert not any(found["class"] in ("stage-stale", "routine-failing", "unpushed") for found in data["issues"])
+
+
+def test_setup_gate_fails_until_names_and_operators_are_set(tmp_path, capsys):
+    import pytest
+    root = repo_vault(tmp_path)
+    with pytest.raises(SystemExit) as gate:
+        cli.main(["health", "--vault", str(root), "--setup"])
+    out = capsys.readouterr().out
+    assert gate.value.code == 1 and "human_name is still the template's 'Human'" in out and "no owner_user_ids" not in out
+    (tmp_path / "brain.toml").write_text('[brain]\nvault = "memory"\nhuman_name = "Srikar"\nagent_name = "Plutus"\n'
+                                         'operator_user_ids = ["demiurge:op1"]\n')
+    with pytest.raises(SystemExit) as gate:
+        cli.main(["health", "--vault", str(root), "--setup"])
+    assert gate.value.code == 0 and capsys.readouterr().out == ""
