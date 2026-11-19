@@ -1578,6 +1578,10 @@ def cmd_doctor_check(args):
         print(text)
 
 
+def cmd_doctor_log(args):
+    print(doctor.log(args.config, args.key, args.outcome, args.note))
+
+
 def cmd_evening_signal(args):
     if text := signals.evening(args.config):
         print(text)
@@ -1987,7 +1991,7 @@ def cmd_schedule(args):
                 if args.reset_night:
                     changes = []
                     for name in ("session-export", "attribution", "night-before", "sleep1", "people", "image",
-                                 "night-after", "improve", "prime", "morning", "upgrade"):
+                                 "night-after", "doctor", "improve", "prime", "morning", "upgrade"):
                         if name not in defaults:
                             continue
                         routine = defaults[name]
@@ -2501,6 +2505,9 @@ def main(argv=None):
     s = doctor_sub.add_parser("check", help="apply mechanical fixes; print what needs the doctor or a person as JSON, or nothing",
                               parents=[vault])
     s.add_argument("--trigger", choices=doctor.TRIGGERS, default="night"); s.set_defaults(fn=cmd_doctor_check)
+    s = doctor_sub.add_parser("log", help="record what the doctor did with one issue in <runtime_dir>/Doctor.md", parents=[vault])
+    s.add_argument("key"); s.add_argument("outcome", choices=doctor.OUTCOMES); s.add_argument("--note", required=True)
+    s.set_defaults(fn=cmd_doctor_log)
     s = sub.add_parser("evening-signal", help="what the evening decides, as one JSON; nothing when there is nothing to decide",
                        parents=[vault])
     s.set_defaults(fn=cmd_evening_signal)

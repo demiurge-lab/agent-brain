@@ -244,6 +244,7 @@ def defaults(config: Config) -> dict[str, Routine]:
         "image": Routine(after="people",
                          skills=[f"{p}image", f"{p}portrait"], prompt="Run the image pass."),
         "night-after": Routine(after="image", prompt="", script="night-after.sh", agent=False),
+        "doctor": Routine(after="night-after", skills=[f"{p}doctor"], prompt="Run the doctor.", script="doctor-signal.sh"),
         "context-refresh": Routine(cron="15 * * * *", prompt="", script="refresh.sh", agent=False),
         "improve": Routine(cron="0 7 * * *", skills=[f"{p}improve"], prompt="Run Improve."),
         "upgrade": Routine(cron="0 9 * * *", prompt="", script="upgrade.sh", agent=False),

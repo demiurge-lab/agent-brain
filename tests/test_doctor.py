@@ -83,3 +83,25 @@ def test_the_command_prints_the_json_or_nothing(tmp_path, monkeypatch, capsys):
     issues.append(issue("structure", "s1", "judgment"))
     cli.main(["doctor", "check", "--vault", str(config.vault_path), "--trigger", "upgrade"])
     assert json.loads(capsys.readouterr().out)["trigger"] == "upgrade"
+
+
+def test_log_appends_one_line_per_issue_to_doctor_md(tmp_path, monkeypatch, capsys):
+    config, _ = setup(tmp_path, monkeypatch)
+    cli.main(["doctor", "log", "stage-stale:sleep1", "fixed", "--vault", str(config.vault_path), "--note", "re-ran\n the stage"])
+    cli.main(["doctor", "log", "setup:abc", "human", "--vault", str(config.vault_path), "--note", "reported"])
+    text = (config.vault_path / "Runtime/Doctor.md").read_text()
+    assert text.startswith("---\nkind: log\n---\n# Doctor\n")
+    lines = [line for line in text.splitlines() if line.startswith("- ")]
+    assert lines[0].endswith(" · stage-stale:sleep1 · fixed · re-ran the stage") and lines[1].endswith(" · setup:abc · human · reported")
+
+
+def test_an_issue_new_within_a_day_of_a_doctor_commit_is_blamed_on_it(tmp_path, monkeypatch):
+    config, issues = setup(tmp_path, monkeypatch, issue("structure", "old", "judgment"))
+    now = datetime.now().astimezone()
+    monkeypatch.setattr(health, "git", lambda repo, *args: f"abc1234 {(now - timedelta(hours=2)).isoformat()}"
+                        if "--grep=^doctor(" in args else None)
+    assert doctor.check(config, now=now - timedelta(days=1)) != ""
+    issues.append(issue("structure", "new", "judgment"))
+    out = json.loads(doctor.check(config, now=now))
+    assert [item["key"] for item in out["issues"]] == ["structure:old"]
+    assert out["report"] == [dict(issue("structure", "new", "judgment"), repeat=True, after="abc1234")]
