@@ -1,5 +1,6 @@
 """The complete night, with local Git repositories and fabricated evidence."""
 import os
+from datetime import date, datetime, timedelta
 from pathlib import Path
 import re
 import shutil
@@ -9,7 +10,7 @@ import sys
 import pytest
 
 from brain.config import Config
-from brain import attribute, cli as brain_cli, compile_context, fm, nightly
+from brain import attribute, cli as brain_cli, compile_context, fm, journal, loops, matters, needs, nightly, state
 from brain.vault import Vault
 from brain.tasks import Task, load_tasks, parse_register, read_archive_body
 from conftest import git, nightly_argv, snapshot
@@ -53,6 +54,66 @@ def cli(root, *extra):
     return subprocess.run(
         [sys.executable, "-m", "brain", *nightly_argv(root, DAY, *extra)],
         cwd=root.parent, env=env, capture_output=True, text=True)
+
+
+def test_night_offers_idle_owner_matters_a_two_day_farewell(vault, monkeypatch, capsys):
+    today = date.fromisoformat(DAY)
+    opened = today - matters.FRESH
+    config = Config.load(vault)
+    for title in ("Garden", "Workshop", "Reading", "Visit", "Move", "Resting"):
+        matters.open_(config, title, opened)
+    matters.keep(config, "Reading.md", opened)
+    matters.soon(config, "Visit", today + timedelta(days=3), "go to the park", today)
+    loops.add(config, datetime.combine(opened, datetime.min.time()), "promised", "Send the moving dates", "Move", hub="Move.md")
+    fm.write(vault / "Unclaimed.md", {"kind": "hub"}, f"# Unclaimed\n## Now\n- **Last:** {opened} · last touch\n")
+    matters.write(config, "Resting.md", opened, aside="set aside by the owner", drop=("now", "soon"))
+
+    nightly.run(vault, today, stage="before")
+    nightly.run(vault, today, stage="before")
+
+    confirms = needs.items(config, today)
+    assert {item.hub for item in confirms} == {"Garden.md", "Workshop.md"}
+    assert len(confirms) == 2
+    assert all(item.kind == "confirm" and "putting" in item.text and "keep it" in item.text for item in confirms)
+    assert all(item.wake == (today + timedelta(days=2)).isoformat() for item in confirms)
+    assert fm.read(vault / "Garden.md")[0]["farewell"] == DAY
+    tomorrow = today + timedelta(days=1)
+    for day in (today, tomorrow):
+        assert next(hub for hub in state.build(config, day)["hubs"] if hub["title"] == "Garden")["phase"] == "current"
+
+    monkeypatch.setattr(Config, "today", lambda self: tomorrow)
+    brain_cli.main(["matters", "--vault", str(vault), "--keep", "Workshop"])
+    capsys.readouterr()
+    assert "farewell" not in fm.read(vault / "Workshop.md")[0]
+    assert {item.hub for item in needs.items(config, tomorrow)} == {"Garden.md"}
+
+    expiry = today + timedelta(days=2)
+    nightly.run(vault, expiry, stage="before")
+    assert not needs.items(config, expiry)
+    assert fm.read(vault / "Garden.md")[0]["farewell"] == DAY
+    assert next(hub for hub in state.build(config, expiry)["hubs"] if hub["title"] == "Garden")["phase"] == "fading"
+
+
+def test_new_matter_touch_cancels_a_farewell_and_allows_a_later_one(vault):
+    today = date.fromisoformat(DAY)
+    tomorrow = today + timedelta(days=1)
+    config = Config.load(vault)
+    matters.open_(config, "Garden", today - matters.FRESH - timedelta(days=2))
+    nightly.run(vault, today, stage="before")
+    assert fm.read(vault / "Garden.md")[0]["farewell"] == DAY
+    first, = needs.items(config, today)
+
+    journal.append_entry(config, {"headline": "Picked the seeds", "outcome": "progress", "about": [{"name": "Garden"}]},
+                         "cli", datetime.combine(tomorrow, datetime.min.time()))
+
+    assert "farewell" not in fm.read(vault / "Garden.md")[0]
+    assert not needs.items(config, tomorrow)
+    later = tomorrow + matters.FRESH
+    nightly.run(vault, later, stage="before")
+    second, = needs.items(config, later)
+    assert second.hub == first.hub == "Garden.md"
+    assert second.id != first.id
+    assert fm.read(vault / "Garden.md")[0]["farewell"] == later.isoformat()
 
 
 def test_full_night_commits_only_agent_notes_and_pushes_one_commit(night_vault):

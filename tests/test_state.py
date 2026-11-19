@@ -105,7 +105,7 @@ def test_hubs_sections_and_progress(work):
     hubs = state.build(work, TODAY)["hubs"]
     assert [hub["source"] for hub in hubs] == sorted(hub["source"] for hub in hubs)
     watch = next(hub for hub in hubs if hub["title"] == "Watch")
-    assert watch == {"id": None, "title": "Watch", "source": "Work/Watch.md", "work": None, "delivers": None,
+    assert watch == {"id": None, "title": "Watch", "source": "Work/Watch.md", "work": None, "delivers": None, "absorbed": [],
                      "responsibility": {"skill": "brain-watch", "records": "receipts"},
                      "openQuestions": ["Which [[Inbox]]?", "Who owns delivery?"],
                      "improvements": [
@@ -120,6 +120,38 @@ def test_hubs_sections_and_progress(work):
     assert other["openQuestions"] == other["improvements"] == []
     assert other["progress"] is None
     assert next(hub for hub in hubs if hub["title"] == "Partial")["responsibility"] is None
+
+
+def test_hubs_export_direct_absorbed_matter_ids(work):
+    for title, data in (
+        ("Workshop", {"matter_id": "m-00000001"}),
+        ("Tools", {"matter_id": "m-00000002", "merged_into": "m-00000001"}),
+        ("Supplies", {"matter_id": "m-00000003", "merged_into": "m-00000001"}),
+        ("Paint", {"matter_id": "m-00000004", "merged_into": "m-00000003"}),
+        ("Private plan", {"matter_id": "m-00000005", "merged_into": "m-00000001", "tier": "private"}),
+    ):
+        fm.write(work.vault_path / f"{title}.md", {"kind": "hub", **data}, f"# {title}\n")
+
+    hubs = {hub["title"]: hub for hub in state.build(work, TODAY)["hubs"]}
+
+    assert hubs["Workshop"]["absorbed"] == ["m-00000003", "m-00000002"]
+    assert hubs["Supplies"]["absorbed"] == ["m-00000004"]
+    assert hubs["Tools"]["absorbed"] == hubs["Watch"]["absorbed"] == []
+    assert "Private plan" not in hubs
+
+
+def test_a_task_links_only_to_the_hub_its_title_resolves_to(work):
+    root = work.vault_path
+    (root / "Projects").mkdir()
+    fm.write(root / "Projects/Workshop.md", {"kind": "hub"}, "# Workshop\n")
+    fm.write(root / "Workshop.md", {"kind": "hub"}, "# Workshop\n")
+    register = root / work.agent("Tasks.md")
+    fm.write(register, {}, "# Tasks\n" + Task("T-001", "Book a room", "- **Hub:** [[Workshop]]\n", {"state": "ready"}).render())
+
+    hubs = {hub["source"]: hub for hub in state.build(work, TODAY)["hubs"]}
+
+    assert hubs["Workshop.md"]["progress"] == {"done": 0, "total": 1}
+    assert hubs["Projects/Workshop.md"]["progress"] is None
 
 
 def test_routines_join_responsibilities_and_all_months_but_not_unknown_legacy_rows(work):

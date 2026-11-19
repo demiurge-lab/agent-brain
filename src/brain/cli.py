@@ -469,6 +469,40 @@ def cmd_matters(args):
         raise SystemExit("with --soon, pass --open without a name; --soon names the matter")
     if args.aside is not None and args.open is not None:
         raise SystemExit("use either --open or --aside")
+    if args.open is not None and any(name is not None for name in (args.merge, args.split, args.keep)):
+        raise SystemExit("use --open separately from --merge, --split and --keep")
+    if (args.merge is None) != (args.into is None):
+        raise SystemExit("use --merge NAME with --into NAME")
+    if (args.split is None) != (args.name is None) or (args.split is None and (args.tasks or args.items)):
+        raise SystemExit("use --split NAME with --name NEW, and optionally --tasks and --items")
+    operation = next((name for name in (args.merge, args.split, args.keep) if name is not None), None)
+    if operation is not None:
+        try:
+            with vault_lock(args.config):
+                vault = Vault(args.config.vault_path)
+                source = matters.find(vault, operation)
+                if source is None:
+                    raise ValueError(f"no matter named {operation!r}")
+                if args.merge is not None:
+                    target = matters.find(vault, args.into)
+                    if target is None:
+                        raise ValueError(f"no matter named {args.into!r}")
+                    result = matters.merge(args.config, vault, source, target, today)
+                    message = f"{source}: merged into {target}"
+                elif args.split is not None:
+                    task_ids = [tid.strip() for tid in args.tasks.split(",") if tid.strip()]
+                    item_ids = [ident.strip() for ident in args.items.split(",") if ident.strip()]
+                    result = matters.split(args.config, vault, source, args.name, today, task_ids, item_ids)
+                    message = f"{source}: split off {result['source']}"
+                else:
+                    matters.keep(args.config, source, today)
+                    result = {"source": source, "id": vault.notes[source].data.get("matter_id"), "kept": True}
+                    message = f"{source}: kept"
+        except ValueError as error:
+            print(error, file=sys.stderr)
+            sys.exit(1)
+        print(json.dumps(result, ensure_ascii=False, indent=2) if args.json else message)
+        return
     if (args.open is not None and not args.soon) or args.aside is not None:
         try:
             with vault_lock(args.config):
@@ -477,7 +511,7 @@ def cmd_matters(args):
                     if source is None:
                         raise ValueError(f"no matter named {args.aside!r}")
                     what = args.what or "set aside by the owner"
-                    matters.write(args.config.vault_path / source, today, aside=what, drop=("now", "soon"))
+                    matters.write(args.config, source, today, aside=what, drop=("now", "soon"))
                     result = {"aside": what}
                     message = f"set aside · {what}"
                 else:
@@ -2234,6 +2268,13 @@ def main(argv=None):
     mode = s.add_mutually_exclusive_group()
     mode.add_argument("--soon", metavar="MATTER", help="set this matter's Soon: its exact title, or a new name with --open")
     mode.add_argument("--aside", metavar="NAME", help="set an existing matter aside; --what gives the reason")
+    mode.add_argument("--merge", metavar="NAME", help="merge this matter into an existing one named with --into")
+    mode.add_argument("--split", metavar="NAME", help="split selected work from this matter into a new one named with --name")
+    mode.add_argument("--keep", metavar="NAME", help="keep a matter current until the owner sets it aside")
+    s.add_argument("--into", metavar="NAME", help="destination matter for --merge")
+    s.add_argument("--name", metavar="NEW", help="new matter for --split")
+    s.add_argument("--tasks", metavar="IDS", default="", help="comma-separated open task IDs to split off")
+    s.add_argument("--items", metavar="IDS", default="", help="comma-separated open loop or Needs you IDs to split off")
     s.add_argument("--date", metavar="YYYY-MM-DD"); s.add_argument("--what", metavar="TEXT")
     s.add_argument("--open", nargs="?", const="", metavar="NAME",
                    help="open a matter now; with --soon, omit NAME to open one for a significant event that has none")

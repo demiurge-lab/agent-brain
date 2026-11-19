@@ -113,8 +113,12 @@ def _improvements(body: str, source: str) -> list[dict]:
 def _hubs(vault: Vault, task_entries: list[dict], responsibility_entries: list[dict], waiting: list[dict],
           today: date) -> list[dict]:
     out = []
-    hubbed = {task["id"] for task in task_entries if task["hub"]}
+    task_hubs = {task["id"]: _hub(vault, task["hub"]) for task in task_entries if task["hub"]}
     folders = {entry["hub"]: entry for entry in responsibility_entries if entry["folder"]}
+    absorbed = {}
+    for source, note in sorted(vault.notes.items()):
+        if note.data.get("matter_id") and (target := note.data.get("merged_into")) and _public(vault, source):
+            absorbed.setdefault(target, []).append(note.data["matter_id"])
     for source, note in sorted(vault.notes.items()):
         folder = folders.get(source)
         if not _public(vault, source) or (folder is None and
@@ -130,22 +134,24 @@ def _hubs(vault: Vault, task_entries: list[dict], responsibility_entries: list[d
         questions = [match[1].strip() for line in note.body[span[0]:span[1]].splitlines()
                      if (match := re.match(r"^[ \t]*[-*+] (.+)", line))] if span else []
         targets = {note.stem.casefold(), source.removesuffix(".md").casefold()}
-        linked = [task for task in task_entries if task["hub"] and task["hub"].casefold() in targets]
+        linked = [task for task in task_entries if (hub := task_hubs.get(task["id"])) and (
+            hub == source or hub not in vault.notes and hub.removesuffix(".md").casefold() in targets)]
         progress = {"done": sum(task["state"] == "completed" for task in linked),
                     "total": sum(task["state"] != "cancelled" for task in linked)} if linked else None
         entry = {"id": note.data.get("matter_id"), "title": title, "source": source,
+                 "absorbed": absorbed.get(note.data.get("matter_id"), []),
                  "responsibility": responsibility, "work": note.data.get("work"),
                  "delivers": note.data.get("delivers"), "openQuestions": questions,
                  "improvements": _improvements(note.body, source), "progress": progress}
         if responsibility is None:
             hub_tasks = {task["id"] for task in linked}
             kept = matters.state(note.body, today)
-            entry["waiting"] = [item["id"] for item in waiting if _belongs(item, source, hub_tasks, hubbed)]
+            entry["waiting"] = [item["id"] for item in waiting if _belongs(item, source, hub_tasks, task_hubs)]
             # A set-aside task, or the owner's work put off for later, is decided for now: it keeps nothing current.
             live = [task for task in linked if task["open"] and task["state"] != "set_aside" and not task["later"]]
             if kept["now"] is None:
                 kept["now"] = _task_now(live, today)
-            entry.update(kept, phase=matters.phase(kept, today, bool(entry["waiting"]) or bool(live)))
+            entry.update(kept, phase=matters.phase(kept, today, bool(entry["waiting"]) or bool(live), data=note.data))
         out.append(entry)
     return out
 
@@ -161,12 +167,12 @@ def _task_now(live: list[dict], today: date) -> dict | None:
     return {"text": max(dated)[1], "date": max(dated)[0]} if dated else None
 
 
-def _belongs(item: dict, source: str, hub_tasks: set[str], hubbed: set[str]) -> bool:
+def _belongs(item: dict, source: str, hub_tasks: set[str], task_hubs: dict[str, str]) -> bool:
     """A loop or ask is a matter's by its own hub line, else its task's hub, else its source when that is the hub:
     a source is only what the conversation touched first, so it decides nothing when it is another note."""
     if item["hub"]:
         return item["hub"] == source
-    if item.get("task") in hubbed:
+    if item.get("task") in task_hubs:
         return item["task"] in hub_tasks
     return item["source"].split("#", 1)[0] == source
 

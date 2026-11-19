@@ -61,21 +61,22 @@ def append_entry(config: Config, record: dict, platform: str, at: datetime, *,
     touched = [title for title in dict.fromkeys(_clean(title) for title in record.get("touched") or [])
                if title and (target := vault.resolve(title)) and _public(vault, target)]
     hub = ""
-    if owner and record.get("about"):
-        # Only the owner's conversations say where their life stands; the loops and asks opened here belong to it.
+    if record.get("loops") or owner and record.get("about"):
         with vault_lock(config):
-            asks = bool(_clean(record.get("needsYou")))
-            hub = matters.record(config, vault, local.date(), record["about"], headline,
-                                 bool(record.get("loops")) or asks) or ""
-            if hub:
-                matters.link_tasks(config, local.date(), hub, session)
-    for loop in record.get("loops") or []:
-        try:
-            loops.add(config, local, loop["kind"], loop["text"], touched[0] if touched else "Conversations",
-                      loop.get("with") or "", loop.get("due") or "", task=loop.get("task") or "",
-                      condition=loop.get("if") or "", hub=hub)
-        except ValueError as error:
-            print(f"skipped loop: {error}", file=sys.stderr)
+            opened = []
+            for loop in record.get("loops") or []:
+                try:
+                    item = loops._add(config, local, loop["kind"], loop["text"], touched[0] if touched else "Conversations",
+                                      loop.get("with") or "", loop.get("due") or "", task=loop.get("task") or "",
+                                      condition=loop.get("if") or "")
+                    if item is not None:
+                        opened.append(item.id)
+                except ValueError as error:
+                    print(f"skipped loop: {error}", file=sys.stderr)
+            if owner and record.get("about"):
+                opens = bool(opened or _clean(record.get("needsYou")))
+                hub = matters.record(config, vault, local.date(), record["about"], headline, opens,
+                                     session=session, item_ids=opened) or ""
     for closure in record.get("closed") or []:
         which, outcome, why = ((closure, "done", "closed in conversation") if isinstance(closure, str) else
                                (closure["loop"], closure["outcome"], closure["why"]))
@@ -234,7 +235,7 @@ def noted(config: Config, at: datetime, lines, speaker: str | None) -> Path | No
 
 def add_ask(config: Config, day: date, text: str, source: str | None, why: str = "", *,
             distinct_source: bool = False, kind: str = "ask", session: str = "", hub: str = "", task: str = "",
-            asker: str = "", _existing: bool = False) -> bool:
+            asker: str = "", wake: date | None = None, _existing: bool = False) -> bool:
     """Appends an ask to CURRENT's `## Needs you` section, creating the section at the end if it is missing; the caller
     holds the vault lock. A valid question is never lost to a full list. Past the ceiling, the evening decides
     the lowest-ranked ones down to it."""
@@ -272,7 +273,7 @@ def add_ask(config: Config, day: date, text: str, source: str | None, why: str =
         bullet += f"\n  - task: {tid}"
     elif asker:
         bullet += f"\n  - for: {asker}"
-    bullet += f"\n  - wake: {needs.wake_for(kind, day)}"
+    bullet += f"\n  - wake: {wake.isoformat() if wake else needs.wake_for(kind, day)}"
     if hub.strip():
         bullet += f"\n  - hub: {hub.strip()}"
     bullet += f"\n  - id: {ident}"
