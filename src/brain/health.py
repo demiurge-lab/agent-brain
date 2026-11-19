@@ -9,7 +9,7 @@ from datetime import date, datetime, timedelta
 from importlib.metadata import PackageNotFoundError, version as installed_version
 from pathlib import Path
 
-from . import fm, install, runtime, validate
+from . import fm, install, roles, runtime, validate
 from .config import Config
 from .tasks import is_open, parse_register
 from .vault import Vault
@@ -67,6 +67,26 @@ def text_key(text: str) -> str:
     return hashlib.sha1(text.encode()).hexdigest()[:10]
 
 
+def errors_path(config: Config) -> Path:
+    return roles.scratch(config) / "errors.jsonl"
+
+
+def turn_errors(config: Config) -> list[dict]:
+    try:
+        lines = errors_path(config).read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return []
+    out = []
+    for line in lines:
+        try:
+            entry = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(entry, dict) and all(isinstance(entry.get(key), str) for key in ("at", "command", "error")):
+            out.append(entry)
+    return out
+
+
 def issues(config: Config, data: dict, structure: list[str], hygiene: list[str], today: date) -> list[dict]:
     """Every finding as {class, key, kind, text}. The key names the thing, so a problem keeps its key from night to night;
     kind is mechanical (the check fixes it), judgment (the doctor) or human (only a person can)."""
@@ -81,7 +101,18 @@ def issues(config: Config, data: dict, structure: list[str], hygiene: list[str],
     if not since and engine["installed"] != "unknown" and engine["recorded"] and engine["installed"] != engine["recorded"]:
         out.append(issue("engine-mismatch", engine["installed"], "mechanical",
                          f"engine {engine['installed']} installed but the vault records {engine['recorded']}"))
-    out += [issue("structure", text_key(text), "judgment", text) for text in structure]
+    tree = config.vault_path.relative_to(config.repo).as_posix() if config.vault_path != config.repo else ""
+    floor = (today - timedelta(days=1)).isoformat()
+    for text in structure:
+        note = text.split(": ", 1)[0]
+        last = (git(config.repo, "log", "-1", "--format=%h %cs", "--", f"{tree}/{note}" if tree else note) or "").split()
+        if len(last) == 2 and last[1] >= floor:
+            out.append(issue("commit-broke", text_key(text), "judgment", f"{text} (since commit {last[0]})"))
+        else:
+            out.append(issue("structure", text_key(text), "judgment", text))
+    for entry in turn_errors(config):
+        out.append(issue("turn-error", text_key(entry["command"] + entry["error"]), "judgment",
+                         f"`{entry['command']}` failed in a conversation at {entry['at']}: {entry['error']}"))
     out += [issue("hygiene-unfixed", text_key(text), "judgment", text) for text in hygiene]
     home = runtime.configured()
     for job in runtime.jobs(home) if home else []:

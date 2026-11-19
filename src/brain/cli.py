@@ -1613,6 +1613,10 @@ def cmd_doctor_check(args):
         print(text)
 
 
+def cmd_doctor_error(args):
+    doctor.record_error(args.config, args.command_line, args.error)
+
+
 def cmd_doctor_log(args):
     print(doctor.log(args.config, args.key, args.outcome, args.note))
 
@@ -2544,6 +2548,8 @@ def main(argv=None):
     s = doctor_sub.add_parser("check", help="apply mechanical fixes; print what needs the doctor or a person as JSON, or nothing",
                               parents=[vault])
     s.add_argument("--trigger", choices=doctor.TRIGGERS, default="night"); s.set_defaults(fn=cmd_doctor_check)
+    s = doctor_sub.add_parser("error", help="record a brain command that failed in a conversation, for the doctor", parents=[vault])
+    s.add_argument("command_line", metavar="COMMAND"); s.add_argument("--error", required=True); s.set_defaults(fn=cmd_doctor_error)
     s = doctor_sub.add_parser("log", help="record what the doctor did with one issue in <runtime_dir>/Doctor.md", parents=[vault])
     s.add_argument("key"); s.add_argument("outcome", choices=doctor.OUTCOMES); s.add_argument("--note", required=True)
     s.set_defaults(fn=cmd_doctor_log)
