@@ -1883,6 +1883,9 @@ def cmd_export_sessions(args):
 
 
 def cmd_install_skills(args):
+    if args.list:
+        print("\n".join(install.engine_skills(args.config)))
+        return
     print(install.skills(args.config))
 
 
@@ -2560,6 +2563,7 @@ def main(argv=None):
     s.set_defaults(fn=cmd_responsibility)
     s = sub.add_parser("timezone", help="print the owner's timezone from brain.toml", parents=[vault]); s.set_defaults(fn=cmd_timezone)
     s = sub.add_parser("install-skills", parents=[vault])
+    s.add_argument("--list", action="store_true", help="print the engine's skill folders for this vault without installing")
     s.set_defaults(fn=cmd_install_skills)
     s = sub.add_parser("update", parents=[vault]); s.set_defaults(fn=cmd_update)
     s = sub.add_parser("migrate-check", parents=[vault]); s.set_defaults(fn=cmd_migrate_check)
