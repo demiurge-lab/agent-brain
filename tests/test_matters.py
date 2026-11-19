@@ -5,7 +5,7 @@ from datetime import date, datetime, timedelta
 
 import pytest
 
-from brain import cli, fm, journal, loops, matters, needs, record, state
+from brain import cli, fm, journal, loops, matters, needs, record, state, tasks
 from brain.config import Config
 from brain.tasks import Task
 from brain.vault import Vault
@@ -378,6 +378,7 @@ def test_the_owner_opens_a_matter_without_a_second_sighting(owner, capsys, what)
     assert opened["source"] == "Kayak trip.md" and opened["opened"] is True
     assert re.fullmatch(r"m-[0-9a-f]{8}", opened["id"])
     path = owner.vault_path / opened["source"]
+    assert fm.read(path)[0]["owner_made"] is True
     kept = matters.state(fm.read(path)[1], TODAY)
     assert kept["now"] == ({"text": what, "date": TODAY.isoformat()} if what else None)
     assert matters.phase(kept, TODAY, False) == "current"
@@ -523,3 +524,133 @@ def test_opening_a_matter_set_aside_brings_it_back(owner, capsys):
     out = json.loads(capsys.readouterr().out)
     assert out["opened"] is False and out["revived"] is True
     assert matters.phase(matters.state(fm.read(path)[1], TODAY), TODAY, False) == "current"
+
+
+def test_merge_refiles_open_work_and_records_both_matter_ids(lisbon, capsys, monkeypatch):
+    monkeypatch.setattr(Config, "today", lambda self: TODAY)
+    root = lisbon.vault_path
+    register = root / lisbon.agent("Tasks.md")
+    data, body = fm.read(register)
+    fm.write(register, data, body + "\n" + Task("T-002", "Book flights", "- **Hub:** [[Trips/Lisbon]]\n",
+                                                 {"state": "completed"}).render())
+    open_loops = loops.open_loops(lisbon)
+    asks = needs.parse_section(fm.read(root / "CURRENT.md")[1])
+    loop_path = loops.path_for(lisbon)
+    data, body = fm.read(loop_path)
+    fm.write(loop_path, data, body.replace("  - hub: [[Trips/Lisbon]]", "  - hub: [[Trips/Lisbon|Trip]]\n  - extra: keep"))
+
+    cli.main(["matters", "--vault", str(root), "--merge", "lisbon", "--into", "Quiet.md", "--json"])
+
+    origin, body = fm.read(root / "Trips/Lisbon.md")
+    target, destination = fm.read(root / "Quiet.md")
+    assert json.loads(capsys.readouterr().out) == {
+        "into": target["matter_id"], "absorbed": origin["matter_id"],
+        "moved": {"tasks": ["T-001"], "items": [item.id for item in open_loops[:4]] + [asks[0].id]},
+    }
+    assert origin["merged_into"] == target["matter_id"]
+    assert matters.state(body, TODAY)["aside"] == {"text": "merged into Quiet", "date": TODAY.isoformat()}
+    assert matters.state(destination, TODAY)["last"] == {"text": "merged with Lisbon", "date": TODAY.isoformat()}
+    assert [task.hub for task in tasks.all_tasks(lisbon)] == ["Quiet", "Trips/Lisbon"]
+    assert [item.hub for item in loops.open_loops(lisbon)] == ["Quiet.md"] * 4 + [""]
+    assert "  - extra: keep" in fm.read(loop_path)[1]
+    assert [item.hub for item in needs.parse_section(fm.read(root / "CURRENT.md")[1])] == ["Quiet.md", ""]
+    assert next(hub for hub in state.build(lisbon, TODAY)["hubs"] if hub["title"] == "Lisbon")["phase"] == "fading"
+
+
+def test_split_validates_all_ids_before_creating_the_new_matter(lisbon, capsys, monkeypatch):
+    monkeypatch.setattr(Config, "today", lambda self: TODAY)
+    root = lisbon.vault_path
+    linked, *_, unrelated = loops.open_loops(lisbon)
+    ask = needs.parse_section(fm.read(root / "CURRENT.md")[1])[0]
+    argv = ["matters", "--vault", str(root), "--split", "Trips/Lisbon", "--name", "Flat search", "--json"]
+    for ids in (["--tasks", "T-001,T-002"], ["--tasks", "T-001", "--items", unrelated.id]):
+        with pytest.raises(SystemExit) as error:
+            cli.main(argv + ids)
+        assert error.value.code == 1
+        assert "linked to Lisbon" in capsys.readouterr().err
+        assert not (root / "Flat search.md").exists()
+        assert tasks.find(lisbon, "T-001").hub == "Lisbon"
+
+    cli.main(argv + ["--tasks", "T-001", "--items", f"{linked.id},{ask.id}"])
+
+    data, body = fm.read(root / "Flat search.md")
+    assert json.loads(capsys.readouterr().out) == {
+        "source": "Flat search.md", "id": data["matter_id"],
+        "moved": {"tasks": ["T-001"], "items": [linked.id, ask.id]},
+    }
+    assert re.fullmatch(r"m-[0-9a-f]{8}", data["matter_id"])
+    assert matters.state(body, TODAY)["last"]["text"] == "split from Lisbon"
+    assert matters.state(fm.read(root / "Trips/Lisbon.md")[1], TODAY)["last"]["text"] == "split off Flat search"
+    assert tasks.find(lisbon, "T-001").hub == "Flat search"
+    assert [item.hub for item in loops.open_loops(lisbon)[:2]] == ["Flat search.md", "Trips/Lisbon.md"]
+    assert needs.parse_section(fm.read(root / "CURRENT.md")[1])[0].hub == "Flat search.md"
+
+
+@pytest.mark.parametrize("opening", ["record", "owner", "calendar"])
+def test_opening_files_still_loose_work_from_an_earlier_sighting(owner, capsys, opening):
+    root = owner.vault_path
+    register = root / owner.agent("Tasks.md")
+    fm.write(register, {}, "# Tasks\n\n" + "\n".join(
+        Task(tid, "Prepare the workshop", body, {"state": task_state}).render()
+        for tid, body, task_state in (
+            ("T-001", "- **Report:** demiurge:first\n", "ready"),
+            ("T-002", "- **Report:** demiurge:first\n", "ready"),
+            ("T-003", "- **Report:** demiurge:first\n", "ready"),
+            ("T-004", "- **Report:** demiurge:other\n", "ready"),
+        )))
+    about = [{"name": "Woodworking class"}]
+    journal.append_entry(owner, {"headline": "Considered a class", "outcome": "progress", "about": about},
+                         "cli", AT - timedelta(days=1), session="first")
+    assert not (root / "Woodworking class.md").exists()
+    assert tasks.find(owner, "T-001").hub is None
+    tasks.close(owner, "T-002", TODAY, False, "Already covered")
+    tasks.set_fields(owner, "T-003", TODAY, values={"hub": "Lisbon trip"})
+
+    argv = ["matters", "--vault", str(root)]
+    if opening == "record":
+        talk(owner, "Picked an instructor", [{"name": "woodworking class", "now": "ready to start"}])
+    elif opening == "owner":
+        cli.main(argv + ["--open", "Woodworking class"])
+    else:
+        cli.main(argv + ["--soon", "Woodworking class", "--open", "--date", "2026-11-20", "--what", "first class"])
+    capsys.readouterr()
+
+    path = root / ("woodworking class.md" if opening == "record" else "Woodworking class.md")
+    assert [task.hub for task in tasks.all_tasks(owner)] == [path.stem, None, "Lisbon trip", None]
+    assert matters.state(fm.read(path)[1], TODAY)["last"] == {"text": "1 earlier task filed here", "date": TODAY.isoformat()}
+    assert "woodworking class" not in json.loads(matters._sightings_path().read_text())
+
+
+def test_a_loop_that_stayed_loose_is_filed_when_its_matter_can_open(owner):
+    root = owner.vault_path
+    path = root / "Garden.md"
+    fm.write(path, {"kind": "hub", "tier": "private"}, "# Garden\n")
+    talk(owner, "Planned the planting", [{"name": "Garden"}], at=AT - timedelta(days=1),
+         loops=[{"kind": "when", "text": "Send the planting dates", "due": "2026-11-20"}])
+    loop, = loops.open_loops(owner)
+    assert not loop.hub
+    assert json.loads(matters._sightings_path().read_text())["garden"]["items"] == [loop.id]
+    path.rename(root / "Private notes.md")
+
+    talk(owner, "Picked the seeds", [{"name": "Garden"}])
+
+    filed, = loops.open_loops(owner)
+    assert filed.id == loop.id and filed.hub == "Garden.md"
+    assert matters.state(fm.read(path)[1], TODAY)["last"]["text"] == "1 earlier item filed here"
+
+
+def test_keep_clears_aside_and_a_later_aside_can_still_fade(owner, capsys):
+    root = owner.vault_path
+    argv = ["matters", "--vault", str(root)]
+    cli.main(argv + ["--aside", "Lisbon trip"])
+    capsys.readouterr()
+    cli.main(argv + ["--keep", "lisbon trip", "--json"])
+    assert json.loads(capsys.readouterr().out)["kept"] is True
+    data, body = fm.read(root / "Lisbon trip.md")
+    later = TODAY + timedelta(days=60)
+    assert data["kept"] is True
+    assert "aside" not in matters.state(body, later)
+    assert next(hub for hub in state.build(owner, later)["hubs"] if hub["title"] == "Lisbon trip")["phase"] == "current"
+
+    cli.main(argv + ["--aside", "Lisbon trip"])
+    assert next(hub for hub in state.build(owner, later)["hubs"] if hub["title"] == "Lisbon trip")["phase"] == "fading"

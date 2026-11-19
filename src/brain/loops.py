@@ -265,6 +265,12 @@ def add(config: Config, at: datetime, kind: str, text: str, source: str, with_: 
         task: str = "", condition: str = "", hub: str = "") -> bool:
     """Open a loop. A `when` loop is what to do once a date comes (`due`) or something happens (`condition`): it needs
     one of them, never goes stale on its own, and is loaded into every session so a message that meets it is seen."""
+    with vault_lock(config):
+        return _add(config, at, kind, text, source, with_, due, task=task, condition=condition, hub=hub) is not None
+
+
+def _add(config: Config, at: datetime, kind: str, text: str, source: str, with_: str = "", due: str = "",
+         task: str = "", condition: str = "", hub: str = "") -> Item | None:
     if kind not in KINDS:
         raise ValueError(f"kind must be one of {', '.join(KINDS)}")
     text, source = _clean(text), source.strip()
@@ -285,21 +291,20 @@ def add(config: Config, at: datetime, kind: str, text: str, source: str, with_: 
     task = task.strip()
     if task and kind != "waiting":
         raise ValueError("--task goes with a waiting loop: the answer it waits for resumes that task")
-    with vault_lock(config):
-        if task and tasks.find(config, task, open_only=True) is None:
-            raise ValueError(f"{task} is not an open task")
-        path = path_for(config)
-        data, body = fm.read(path) if path.exists() else fm.split(TEMPLATE)
-        if any(fm.plain(item.text) == fm.plain(text) for item in parse_section(body)):
-            return False
-        item = Item(kind, text, config.local(at).strftime("%Y-%m-%d %H:%M"), source, with_, due, task=task, if_=condition,
-                    hub=hub.strip())
-        if (deadline := _deadline(config, item)) is not None:
-            item.wake = config.local(deadline).strftime("%Y-%m-%d %H:%M")
-        body = _insert(body, "Open", render(item))
-        path.parent.mkdir(parents=True, exist_ok=True)
-        fm.write(path, data, body)
-    return True
+    if task and tasks.find(config, task, open_only=True) is None:
+        raise ValueError(f"{task} is not an open task")
+    path = path_for(config)
+    data, body = fm.read(path) if path.exists() else fm.split(TEMPLATE)
+    if any(fm.plain(item.text) == fm.plain(text) for item in parse_section(body)):
+        return None
+    item = Item(kind, text, config.local(at).strftime("%Y-%m-%d %H:%M"), source, with_, due, task=task, if_=condition,
+                hub=hub.strip())
+    if (deadline := _deadline(config, item)) is not None:
+        item.wake = config.local(deadline).strftime("%Y-%m-%d %H:%M")
+    body = _insert(body, "Open", render(item))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fm.write(path, data, body)
+    return item
 
 
 def _pick(config: Config, which: str) -> Item:

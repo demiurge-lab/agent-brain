@@ -445,6 +445,7 @@ def _before(vault: Vault, today: date, sessions_dir: Path | None, library_record
         if ask_library(config, today, report, library_records):
             written.add("CURRENT.md")
         removed = needs.expire_confirms(config, today)
+        written |= matters.farewells(Vault(vault.root), today, report)
         expired_consults = consults.expire_confirms(config, today)
         settled = reception.settle(config, today)
     report.extend(f"reception: nothing heard in {reception.SETTLE_DAYS} days, {row.outcome}: {row.kind} {row.what}"
