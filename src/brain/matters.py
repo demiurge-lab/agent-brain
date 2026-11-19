@@ -3,12 +3,14 @@ keeps where it stands (`**Now:** <text> · <date>`), the next dated thing and th
 (`**Soon:**` and `**Last:**`, each `<date> · <text>`), and an `**Aside:**` when the owner set it aside. See
 docs/matters.md in the demiurge repo."""
 import re
+import secrets
 from datetime import date, timedelta
 
 from . import fm
 
-FRESH = timedelta(days=14)    # a Now or Last this recent keeps the matter current
+FRESH = timedelta(days=7)
 AHEAD = timedelta(days=21)    # a Soon this close makes it soon
+RECOGNISED = timedelta(days=60)
 
 LINE = re.compile(r"^[ \t]*-[ \t]+\*\*(Now|Soon|Last|Aside):\*\*[ \t]*(.+?)[ \t]*$", re.M | re.I)
 DATE = r"(\d{4}-\d{2}-\d{2})"
@@ -85,9 +87,9 @@ def _worked(vault, today: date) -> set[str]:
     return {hub.removesuffix(".md").casefold() for hub in named if hub}
 
 
-def listed(vault, today: date) -> list[tuple[str, str]]:
+def listed(vault, today: date, *, quiet: bool = False) -> list[tuple[str, str]]:
     """The matters the record is shown by name, (title, source), the most recently touched first: hubs that have not
-    faded, those with live work even without a `## Now`."""
+    faded, those with live work even without a `## Now`. With quiet, only recently faded matters are shown."""
     standing = _responsibility_hubs(vault)
     worked = _worked(vault, today)
     shown = []
@@ -96,9 +98,10 @@ def listed(vault, today: date) -> list[tuple[str, str]]:
         if not (work or fm.section(note.body, "Now") is not None) or not _is_matter(vault, source, standing):
             continue
         state_ = state(note.body, today)
-        if phase(state_, today, bool(work)) == "fading":
+        fading = phase(state_, today, bool(work)) == "fading"
+        latest = max((state_[key]["date"] for key in ("now", "last", "soon", "aside") if state_.get(key)), default="")
+        if fading != quiet or (quiet and not ((today - RECOGNISED).isoformat() <= latest <= today.isoformat())):
             continue
-        latest = max((state_[key]["date"] for key in ("now", "last", "soon") if state_[key]), default="")
         shown.append((latest, note.stem, source))
     return [(title, source) for _, title, source in sorted(shown, reverse=True)][:20]
 
@@ -163,6 +166,39 @@ def _sightings_path():
     return home / "records" / "matters.json" if home else None
 
 
+def _create(vault, name: str, *, opened: date | None = None) -> str:
+    name = _flat(UNSAFE.sub(" ", name))[:60].strip(" .")
+    path = vault.root / f"{name}.md"
+    if not name or path.exists():
+        raise ValueError(f"{name!r} cannot be a matter: a note of that name exists or the name is empty")
+    data = {"kind": "hub", "tier": "warm", "matter_id": "m-" + secrets.token_hex(4)}
+    if opened is not None:
+        data["opened"] = opened.isoformat()
+    fm.write(path, data, f"# {name}\n")
+    vault.load()
+    return path.relative_to(vault.root).as_posix()
+
+
+def open_(config, name: str, today: date, what: str | None = None) -> tuple[str, str]:
+    """Return (source, "opened" | "revived" | "kept") for the owner's request: a faded matter comes back, a live one keeps
+    its body. Caller holds the vault lock."""
+    from .vault import Vault
+    vault = Vault(config.vault_path)
+    source = find(vault, name)
+    if source is not None:
+        path = config.vault_path / source
+        data, body = fm.read(path)
+        if "matter_id" not in data:
+            fm.write(path, {**data, "matter_id": "m-" + secrets.token_hex(4)}, body)
+        if phase(state(body, today), today, False) == "fading":
+            write(path, today, now=what, last="brought back by the owner", drop=("aside",))
+            return source, "revived"
+        return source, "kept"
+    source = _create(vault, name)
+    write(config.vault_path / source, today, now=what, last="opened by the owner")
+    return source, "opened"
+
+
 def record(config, vault, today: date, about: list[dict], headline: str, opens: bool) -> str | None:
     """Apply a conversation record's `about` to the owner's matters: each named matter gets its Now (when the record
     gave one), its Soon (when it named a date sooner than the one kept) and a Last of what happened; a matter the owner
@@ -192,13 +228,11 @@ def record(config, vault, today: date, about: list[dict], headline: str, opens: 
             if not (opens or soon or recent):
                 seen[key] = [today.isoformat()]
                 continue
-            path = config.vault_path / f"{name}.md"
-            if path.exists():
+            try:
+                source = _create(vault, name)
+            except ValueError:
                 continue   # a note of that name that is not a matter (private, a responsibility) is left alone
-            fm.write(path, {"kind": "hub", "tier": "warm"}, f"# {name}\n")
-            vault.load()
             seen.pop(key, None)
-            source = path.relative_to(config.vault_path).as_posix()
         kept = state(fm.read(config.vault_path / source)[1], today)["soon"]
         if soon and kept and today.isoformat() <= kept["date"] < soon["date"]:
             soon = None   # the sooner thing stays next
@@ -249,15 +283,10 @@ def soon(config, name: str, when: date, what: str, today: date, *, open_: bool =
     if source is None:
         if not open_:
             raise ValueError(f"no matter named {name!r}; pass --open for a significant event with none")
-        name = _flat(UNSAFE.sub(" ", name))[:60].strip(" .")
         opened = sum(note.data.get("opened") == today.isoformat() for note in vault.notes.values())
         if opened >= OPENS_A_DAY:
             raise ValueError(f"{OPENS_A_DAY} matters were already opened today; leave this one")
-        path = config.vault_path / f"{name}.md"
-        if not name or path.exists():
-            raise ValueError(f"{name!r} cannot be a matter: a note of that name exists or the name is empty")
-        fm.write(path, {"kind": "hub", "tier": "warm", "opened": today.isoformat()}, f"# {name}\n")
-        source = path.relative_to(config.vault_path).as_posix()
+        source = _create(vault, name, opened=today)
     path = config.vault_path / source
     kept = state(fm.read(path)[1], today)["soon"]
     if not (kept and today.isoformat() <= kept["date"] < when.isoformat()):
@@ -265,13 +294,13 @@ def soon(config, name: str, when: date, what: str, today: date, *, open_: bool =
     return source
 
 
-def held(config, today: date) -> list[str]:
+def held(config, today: date, *, quiet: bool = False) -> list[str]:
     """The matters a conversation record is shown, each with where it stands, so a new Now carries the whole matter
     forward instead of only the latest exchange."""
     from .vault import Vault
     vault = Vault(config.vault_path)
     out = []
-    for title, source in listed(vault, today):
+    for title, source in listed(vault, today, quiet=quiet):
         kept = state(vault.notes[source].body, today)["now"]
         out.append(f"- {title}" + (f" · now: {kept['text']}" if kept else ""))
     return out

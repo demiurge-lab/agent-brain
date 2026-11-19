@@ -105,7 +105,7 @@ def test_hubs_sections_and_progress(work):
     hubs = state.build(work, TODAY)["hubs"]
     assert [hub["source"] for hub in hubs] == sorted(hub["source"] for hub in hubs)
     watch = next(hub for hub in hubs if hub["title"] == "Watch")
-    assert watch == {"title": "Watch", "source": "Work/Watch.md", "work": None, "delivers": None,
+    assert watch == {"id": None, "title": "Watch", "source": "Work/Watch.md", "work": None, "delivers": None,
                      "responsibility": {"skill": "brain-watch", "records": "receipts"},
                      "openQuestions": ["Which [[Inbox]]?", "Who owns delivery?"],
                      "improvements": [

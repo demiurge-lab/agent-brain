@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import re
+import secrets
 import shutil
 import sys
 import tempfile
@@ -16,7 +17,7 @@ from datetime import date
 from pathlib import Path
 
 from . import activation as act
-from . import attribute, compile_context, consults, fm, image, items, journal, ledger, needs, reception, validate
+from . import attribute, compile_context, consults, fm, image, items, journal, ledger, matters, needs, reception, validate
 from .tasks import Task, bounded_hot_body, is_open, load_tasks, parse_register, task_activation, write_archive
 from .vault import DAILY, Vault
 from .config import Config
@@ -39,6 +40,7 @@ def mechanical(vault: Vault, rel: str) -> bool:
 
 def ensure_frontmatter(vault: Vault, today: date, report: list[str]) -> set[str]:
     changed = set()
+    standing = matters._responsibility_hubs(vault)
     for rel, n in vault.notes.items():
         if not mechanical(vault, rel):
             continue
@@ -46,6 +48,8 @@ def ensure_frontmatter(vault: Vault, today: date, report: list[str]) -> set[str]
         d = dict(n.data)
         before = dict(d)
         d.setdefault("kind", kind if kind != "hub" else d.get("kind", "hub"))
+        if "matter_id" not in d and matters._is_matter(vault, rel, standing):
+            d["matter_id"] = "m-" + secrets.token_hex(4)
         if kind == "orientation":
             d.setdefault("pinned", True)
             d.setdefault("tier", "hot")

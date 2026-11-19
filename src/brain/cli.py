@@ -463,6 +463,34 @@ def cmd_matters(args):
     from . import channel_files, matters
     from .vault import Vault
     today = args.config.today()
+    if args.open == "" and not args.soon:
+        raise SystemExit("--open needs a matter name unless used with --soon")
+    if args.soon and args.open not in (None, ""):
+        raise SystemExit("with --soon, pass --open without a name; --soon names the matter")
+    if args.aside is not None and args.open is not None:
+        raise SystemExit("use either --open or --aside")
+    if (args.open is not None and not args.soon) or args.aside is not None:
+        try:
+            with vault_lock(args.config):
+                if args.aside is not None:
+                    source = matters.find(Vault(args.config.vault_path), args.aside)
+                    if source is None:
+                        raise ValueError(f"no matter named {args.aside!r}")
+                    what = args.what or "set aside by the owner"
+                    matters.write(args.config.vault_path / source, today, aside=what, drop=("now", "soon"))
+                    result = {"aside": what}
+                    message = f"set aside · {what}"
+                else:
+                    source, status = matters.open_(args.config, args.open, today, args.what)
+                    result = {"opened": status == "opened", **({"revived": True} if status == "revived" else {})}
+                    message = {"opened": "opened", "revived": "brought back", "kept": "already a matter"}[status]
+                data, _ = fm.read(args.config.vault_path / source)
+        except ValueError as error:
+            print(error, file=sys.stderr)
+            sys.exit(1)
+        print(json.dumps({"source": source, "id": data.get("matter_id"), **result}, ensure_ascii=False, indent=2)
+              if args.json else f"{source}: {message}")
+        return
     if args.soon:
         try:
             when = date.fromisoformat(args.date or "")
@@ -471,11 +499,18 @@ def cmd_matters(args):
             sys.exit(2)
         try:
             with vault_lock(args.config):
-                source = matters.soon(args.config, args.soon, when, args.what or "", today, open_=args.open)
+                source = matters.soon(args.config, args.soon, when, args.what or "", today, open_=args.open is not None)
         except ValueError as error:
             print(error, file=sys.stderr)
             sys.exit(1)
-        print(f"{source}: soon {when.isoformat()} · {args.what}")
+        print(json.dumps({"source": source, "soon": {"date": when.isoformat(), "text": args.what}},
+                         ensure_ascii=False, indent=2) if args.json else f"{source}: soon {when.isoformat()} · {args.what}")
+        return
+    if args.json:
+        vault = Vault(args.config.vault_path)
+        print(json.dumps([{"id": vault.notes[source].data.get("matter_id"), "title": title, "source": source,
+                           **matters.state(vault.notes[source].body, today)}
+                          for title, source in matters.listed(vault, today)], ensure_ascii=False, indent=2))
         return
     print("## Matters\n\n" + ("\n".join(matters.lines(args.config, today)) or "- None yet."))
     if args.calendar:
@@ -2192,9 +2227,13 @@ def main(argv=None):
     s = sub.add_parser("matters", help="what the owner's life holds now and soon; --soon links a calendar event to one",
                        parents=[vault])
     s.add_argument("--calendar", action="store_true", help="also the calendar for the next 21 days")
-    s.add_argument("--soon", metavar="MATTER", help="set this matter's Soon: its exact title, or a new name with --open")
+    mode = s.add_mutually_exclusive_group()
+    mode.add_argument("--soon", metavar="MATTER", help="set this matter's Soon: its exact title, or a new name with --open")
+    mode.add_argument("--aside", metavar="NAME", help="set an existing matter aside; --what gives the reason")
     s.add_argument("--date", metavar="YYYY-MM-DD"); s.add_argument("--what", metavar="TEXT")
-    s.add_argument("--open", action="store_true", help="with --soon: open a matter for a significant event that has none")
+    s.add_argument("--open", nargs="?", const="", metavar="NAME",
+                   help="open a matter now; with --soon, omit NAME to open one for a significant event that has none")
+    s.add_argument("--json", action="store_true")
     s.set_defaults(fn=cmd_matters)
     s = sub.add_parser("loops", help="promises, answers owed, waits on others, and what to do when something happens",
                        parents=[vault])

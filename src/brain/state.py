@@ -133,7 +133,8 @@ def _hubs(vault: Vault, task_entries: list[dict], responsibility_entries: list[d
         linked = [task for task in task_entries if task["hub"] and task["hub"].casefold() in targets]
         progress = {"done": sum(task["state"] == "completed" for task in linked),
                     "total": sum(task["state"] != "cancelled" for task in linked)} if linked else None
-        entry = {"title": title, "source": source, "responsibility": responsibility, "work": note.data.get("work"),
+        entry = {"id": note.data.get("matter_id"), "title": title, "source": source,
+                 "responsibility": responsibility, "work": note.data.get("work"),
                  "delivers": note.data.get("delivers"), "openQuestions": questions,
                  "improvements": _improvements(note.body, source), "progress": progress}
         if responsibility is None:
