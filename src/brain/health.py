@@ -1,6 +1,7 @@
 """Operational report for a vault: stage runs, engine state, export freshness and counts. Never note contents."""
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import subprocess
@@ -8,7 +9,7 @@ from datetime import date, datetime, timedelta
 from importlib.metadata import PackageNotFoundError, version as installed_version
 from pathlib import Path
 
-from . import fm, install, validate
+from . import fm, install, runtime, validate
 from .config import Config
 from .tasks import is_open, parse_register
 from .vault import Vault
@@ -49,10 +50,47 @@ def setup(config: Config) -> list[str]:
     out = []
     if not config.owner_user_ids:
         out.append("no owner_user_ids, so its owner is treated as a stranger")
+    if not config.operator_user_ids:
+        out.append("no operator_user_ids, so problems only a person can fix reach no one")
     if config.human_name == defaults["human_name"].default:
         out.append(f"human_name is still the template's {config.human_name!r}")
     if config.agent_name == defaults["agent_name"].default:
         out.append(f"agent_name is still the template's {config.agent_name!r}")
+    return out
+
+
+def issue(kind_of: str, thing: str, kind: str, text: str) -> dict:
+    return {"class": kind_of, "key": f"{kind_of}:{thing}", "kind": kind, "text": text}
+
+
+def text_key(text: str) -> str:
+    return hashlib.sha1(text.encode()).hexdigest()[:10]
+
+
+def issues(config: Config, data: dict, structure: list[str], hygiene: list[str], today: date) -> list[dict]:
+    """Every finding as {class, key, kind, text}. The key names the thing, so a problem keeps its key from night to night;
+    kind is mechanical (the check fixes it), judgment (the doctor) or human (only a person can)."""
+    out = [issue("setup", text_key(text), "human", text) for text in data["setup"]]
+    live = any(entry["last"] for entry in data["stages"].values())
+    out += [issue("stage-stale", stage, "judgment", f"night stage {stage} last ran {entry['last'] or 'never'}")
+            for stage, entry in data["stages"].items() if entry["state"] == "stale" or (live and entry["state"] == "never")]
+    engine = data["engine"]
+    since = engine["pending_migration_since"]
+    if since and since != "uncommitted" and since < (today - timedelta(days=1)).isoformat():
+        out.append(issue("migration-stuck", engine["recorded"] or "unknown", "judgment", f"a migration has been pending since {since}"))
+    if not since and engine["installed"] != "unknown" and engine["recorded"] and engine["installed"] != engine["recorded"]:
+        out.append(issue("engine-mismatch", engine["installed"], "mechanical",
+                         f"engine {engine['installed']} installed but the vault records {engine['recorded']}"))
+    out += [issue("structure", text_key(text), "judgment", text) for text in structure]
+    out += [issue("hygiene-unfixed", text_key(text), "judgment", text) for text in hygiene]
+    home = runtime.configured()
+    for job in runtime.jobs(home) if home else []:
+        if job.get("enabled", True) and job.get("last_status") == "failed":
+            out.append(issue("routine-failing", job.get("name") or str(job.get("id")), "judgment",
+                             f"routine {job.get('name')} failed at {job.get('last_run_at')}: {job.get('last_error') or 'no error recorded'}"))
+    oldest = next(iter((git(config.repo, "log", "origin/main..HEAD", "--reverse", "--format=%cs") or "").splitlines()), None)
+    if oldest and oldest < (today - timedelta(days=1)).isoformat():
+        out.append(issue("unpushed", "origin/main", "mechanical", f"vault commits since {oldest} are not on origin"))
     return out
 
 
@@ -84,7 +122,9 @@ def report(config: Config, today: date | None = None) -> dict:
         installed = "unknown"
     status = git(config.repo, "status", "--porcelain")
     counts = (git(config.repo, "rev-list", "--left-right", "--count", "origin/main...HEAD") or "? ?").split()
-    return {
+    structure = validate.run(vault, set(vault.notes))
+    hygiene = validate.hygiene(vault) + validate.broken_bytes(vault)
+    data = {
         "agent": config.agent_name,
         "date": today.isoformat(),
         "setup": setup(config),
@@ -92,10 +132,12 @@ def report(config: Config, today: date | None = None) -> dict:
         "engine": {"installed": installed, "recorded": install.recorded_version(config),
                    "pending_migration_since": pending_since},
         "export": {"expected": yesterday, "digest": yesterday if digest.exists() else None, "coverage": coverage},
-        "vault": {"validation_problems": len(validate.checks(vault)), "notes": tiers,
+        "vault": {"validation_problems": len(structure) + len(hygiene), "notes": tiers,
                   "open_tasks": open_tasks},
         "git": {"dirty": None if status is None else len(status.splitlines()), "behind": counts[0], "ahead": counts[1]},
     }
+    data["issues"] = issues(config, data, structure, hygiene, today)
+    return data
 
 
 def render(data: dict, *, include_git: bool = True) -> str:
@@ -111,6 +153,7 @@ def render(data: dict, *, include_git: bool = True) -> str:
     lines = [f"# Health: {data['agent']}, {data['date']}", "",
              *([f"Setup: {'; '.join(data['setup'])}"] if data.get("setup") else []),
              f"Stages: {stage_text}",
+             f"Issues: {issues_text(data.get('issues', []))}",
              f"Engine: {engine_text}",
              f"Export: {export_text}",
              f"Vault: {vault['validation_problems']} validation problems; {notes['hot']} hot, {notes['warm']} warm, "
@@ -121,6 +164,16 @@ def render(data: dict, *, include_git: bool = True) -> str:
             "clean" if git_state["dirty"] == 0 else f"{git_state['dirty']} uncommitted")
         lines.append(f"Git: {tree}, {git_state['ahead']} ahead, {git_state['behind']} behind origin/main")
     return "\n".join(lines) + "\n"
+
+
+def issues_text(found: list[dict]) -> str:
+    """Counts by class only: hygiene texts quote notes, and this file never carries note contents."""
+    if not found:
+        return "none"
+    counts: dict[str, int] = {}
+    for item in found:
+        counts[item["class"]] = counts.get(item["class"], 0) + 1
+    return f"{len(found)} (" + ", ".join(f"{n} {name}" for name, n in counts.items()) + ")"
 
 
 def write(config: Config, data: dict) -> Path:
