@@ -84,6 +84,13 @@ def render_skill(config: Config, name: str) -> str:
     return render(for_edition(template.read_text(encoding="utf-8"), config.edition), values)
 
 
+def engine_skills(config: Config) -> list[str]:
+    """The skill folders `install-skills` writes for this vault's edition, so a runtime can tell the engine's from the vault's own."""
+    return sorted(config.skill_prefix + path.name for path in files("brain").joinpath("skills").iterdir()
+                  if path.joinpath("SKILL.md").is_file()
+                  and config.edition in editions(path.joinpath("SKILL.md").read_text(encoding="utf-8")))
+
+
 def skills(config: Config) -> Path:
     """Skills and the Memory Spec keep the vault's own `## Local` sections, read and rewritten under the vault lock."""
     with vault_lock(config):

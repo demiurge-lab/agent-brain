@@ -37,6 +37,19 @@ def test_install_skills_renders_every_template_and_is_idempotent(vault, prefix, 
     assert snapshot(vault) == before
 
 
+@pytest.mark.parametrize("edition, prefix", [("personal", "brain-"), ("enterprise", "")])
+def test_install_skills_list_names_the_engine_skills_without_writing(vault, edition, prefix, capsys):
+    (vault.parent / "brain.toml").write_text(f'[brain]\nskill_prefix = "{prefix}"\nedition = "{edition}"\n')
+    config = Config.load(vault)
+    before = snapshot(vault)
+    cli.main(["install-skills", "--list", "--vault", str(vault)])
+    listed = capsys.readouterr().out.split()
+    assert snapshot(vault) == before
+    install.skills(config)
+    assert listed == sorted(path.name for path in config.skills_path.iterdir() if (path / "SKILL.md").is_file())
+    assert (prefix + "recall") in listed
+
+
 @pytest.mark.parametrize("entry_point", ["migrate-check", "sync"])
 def test_responsibility_pause_conversion_precedes_sync_once(vault, monkeypatch, entry_point):
     monkeypatch.setenv("BRAIN_TODAY", "2026-11-12")
