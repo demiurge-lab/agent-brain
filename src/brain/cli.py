@@ -14,7 +14,7 @@ from dataclasses import asdict, replace
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from . import access, attribute, compile_context, consults, digest, evidence, fm, health, identity, ideas, image, items, journal, ledger, loops, needs, owners, portrait, reception, retrieve, seed, session_context, state, tellable, validate, views, works
+from . import access, attribute, compile_context, consults, digest, doctor, evidence, fm, health, identity, ideas, image, items, journal, ledger, loops, needs, owners, portrait, reception, retrieve, seed, session_context, state, tellable, validate, views, works
 from . import tasks as tasks_mod
 from . import goals, responsibilities, roles
 from .tasks import load_tasks, quiet
@@ -107,6 +107,10 @@ def _pull(repo: Path, suffix: str = "") -> None:
           + ", ".join(f"{name} in {sha}" for name, sha in sorted(clashed.items())), file=sys.stderr)
 
 
+class PushFailed(Exception):
+    pass
+
+
 def push(root: Path) -> None:
     config = Config.load(root)
     repo = config.repo
@@ -121,7 +125,7 @@ def push(root: Path) -> None:
                 return
             except subprocess.CalledProcessError:
                 pass
-        sys.exit("push failed (git's error is above); the commit is kept locally")
+        raise PushFailed("push failed (git's error is above); the commit is kept locally")
 
 
 def cmd_pull(a):
@@ -140,7 +144,10 @@ def cmd_commit(a):
         sys.exit(1)
     print(f"committed {sha}" if sha else "nothing to commit")
     if a.push:
-        push(a.config.vault_path)
+        try:
+            push(a.config.vault_path)
+        except PushFailed as error:
+            sys.exit(str(error))
         print("pushed")
 
 
@@ -162,7 +169,10 @@ def cmd_nightly(a):
         sha = commit(root, f"{label}({today.isoformat()}): {summary or 'no changes'}")
         print(f"commit {sha}" if sha else "nothing to commit")
         if a.push and sha:
-            push(root)
+            try:
+                push(root)
+            except PushFailed as error:
+                sys.exit(str(error))
             print("pushed")
 
 
@@ -1563,6 +1573,11 @@ def cmd_explore_signal(args):
     print(signals.explore(args.config))
 
 
+def cmd_doctor_check(args):
+    if text := doctor.check(args.config, args.trigger):
+        print(text)
+
+
 def cmd_evening_signal(args):
     if text := signals.evening(args.config):
         print(text)
@@ -2481,6 +2496,11 @@ def main(argv=None):
     s.set_defaults(fn=cmd_watch_signal)
     s = sub.add_parser("explore-signal", help="explore's change gate: the first tick each day, then additions, without a model", parents=[vault])
     s.set_defaults(fn=cmd_explore_signal)
+    s = sub.add_parser("doctor", help="self-heal (docs/self-heal.md)", parents=[vault])
+    doctor_sub = s.add_subparsers(dest="doctor_command", required=True)
+    s = doctor_sub.add_parser("check", help="apply mechanical fixes; print what needs the doctor or a person as JSON, or nothing",
+                              parents=[vault])
+    s.add_argument("--trigger", choices=doctor.TRIGGERS, default="night"); s.set_defaults(fn=cmd_doctor_check)
     s = sub.add_parser("evening-signal", help="what the evening decides, as one JSON; nothing when there is nothing to decide",
                        parents=[vault])
     s.set_defaults(fn=cmd_evening_signal)
