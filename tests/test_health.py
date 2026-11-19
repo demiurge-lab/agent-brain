@@ -131,3 +131,28 @@ def test_setup_gate_fails_until_names_and_operators_are_set(tmp_path, capsys):
     with pytest.raises(SystemExit) as gate:
         cli.main(["health", "--vault", str(root), "--setup"])
     assert gate.value.code == 0 and capsys.readouterr().out == ""
+
+
+def test_a_fresh_structure_problem_names_the_commit_that_made_it(tmp_path):
+    root = repo_vault(tmp_path)
+    (root / "Broken.md").write_text("# Broken\nno frontmatter\n")
+    git(tmp_path, "add", ".")
+    git(tmp_path, "commit", "-q", "-m", "write broken")
+    sha = git(tmp_path, "rev-parse", "--short", "HEAD")
+    found = [item for item in health.report(Config.load(root), date.today())["issues"] if "Broken.md" in item["text"]]
+    assert [(item["class"], item["text"]) for item in found] == [
+        ("commit-broke", f"Broken.md: missing frontmatter key tier (since commit {sha})")]
+    later = [item for item in health.report(Config.load(root), date.today() + timedelta(days=5))["issues"] if "Broken.md" in item["text"]]
+    assert [item["class"] for item in later] == ["structure"]
+
+
+def test_failed_turn_commands_are_issues_until_the_doctor_logs_them(tmp_path, capsys):
+    root = repo_vault(tmp_path)
+    cli.main(["doctor", "error", "brain task T-9 set   --next x", "--vault", str(root), "--error", "unknown task T-9\n"])
+    cli.main(["doctor", "error", "brain loops --close abc", "--vault", str(root), "--error", ""])
+    found = [item for item in health.report(Config.load(root))["issues"] if item["class"] == "turn-error"]
+    assert [item["text"].split(" failed")[0] for item in found] == ["`brain task T-9 set --next x`", "`brain loops --close abc`"]
+    assert found[0]["text"].endswith(": unknown task T-9") and found[1]["text"].endswith(": no error output")
+    cli.main(["doctor", "log", found[0]["key"], "fixed", "--vault", str(root), "--note", "T-9 was archived; used T-10"])
+    left = [item["key"] for item in health.report(Config.load(root))["issues"] if item["class"] == "turn-error"]
+    assert left == [found[1]["key"]]

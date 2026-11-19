@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from . import fm, health, install, roles
 from .config import Config
 
-TRIGGERS = ("night", "run-failed", "upgrade", "turn-error", "commit")
+TRIGGERS = ("night", "run-failed", "upgrade", "turn-error")
 COOLDOWN = timedelta(hours=3)
 REPEAT_NIGHTS = 3
 FORGET = timedelta(days=30)
@@ -47,7 +47,23 @@ def _blame(config: Config, now: datetime, new: set[str]) -> dict[str, str]:
     return {key: last[0] for key in new} if timedelta(0) <= since < BLAME else {}
 
 
+def record_error(config: Config, command: str, error: str) -> None:
+    entry = {"at": config.now().isoformat(timespec="seconds"), "command": " ".join(command.split())[:300],
+             "error": " ".join(error.split())[-300:] or "no error output"}
+    with health.errors_path(config).open("a", encoding="utf-8") as stream:
+        stream.write(json.dumps(entry, ensure_ascii=False) + "\n")
+
+
+def _clear_error(config: Config, key: str) -> None:
+    path = health.errors_path(config)
+    kept = [entry for entry in health.turn_errors(config)
+            if f"turn-error:{health.text_key(entry['command'] + entry['error'])}" != key]
+    fm.write_text(path, "".join(json.dumps(entry, ensure_ascii=False) + "\n" for entry in kept))
+
+
 def log(config: Config, key: str, outcome: str, note: str) -> str:
+    if key.startswith("turn-error:"):
+        _clear_error(config, key)
     path = config.vault_path / config.runtime_dir / "Doctor.md"
     path.parent.mkdir(parents=True, exist_ok=True)
     if not path.exists():
