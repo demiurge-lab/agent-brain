@@ -480,7 +480,7 @@ def cmd_matters(args):
         try:
             with vault_lock(args.config):
                 vault = Vault(args.config.vault_path)
-                source = matters.find(vault, operation)
+                source = matters.find(vault, operation, follow=args.merge is None)
                 if source is None:
                     raise ValueError(f"no matter named {operation!r}")
                 if args.merge is not None:

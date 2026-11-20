@@ -216,10 +216,12 @@ def note_name(config: Config, value: str) -> str:
     value = single_line("hub", value)
     if not value or any(char in value for char in "[]#|"):
         raise ValueError("hub must name an existing note, without wikilink brackets")
-    resolved = Vault(config.vault_path).resolve(value)
+    vault = Vault(config.vault_path)
+    resolved = vault.resolve(value)
     if resolved is None or not resolved.endswith(".md"):
         raise ValueError(f"hub note does not exist: {value}")
-    return resolved.removesuffix(".md")
+    from .matters import _survivor
+    return _survivor(vault, resolved).removesuffix(".md")
 
 
 def _field_value(config: Config, name: str, value: str) -> str:

@@ -545,16 +545,38 @@ def test_merge_refiles_open_work_and_records_both_matter_ids(lisbon, capsys, mon
     target, destination = fm.read(root / "Quiet.md")
     assert json.loads(capsys.readouterr().out) == {
         "into": target["matter_id"], "absorbed": origin["matter_id"],
-        "moved": {"tasks": ["T-001"], "items": [item.id for item in open_loops[:4]] + [asks[0].id]},
+        "moved": {"tasks": ["T-001", "T-002"], "items": [item.id for item in open_loops[:4]] + [asks[0].id]},
     }
     assert origin["merged_into"] == target["matter_id"]
     assert matters.state(body, TODAY)["aside"] == {"text": "merged into Quiet", "date": TODAY.isoformat()}
     assert matters.state(destination, TODAY)["last"] == {"text": "merged with Lisbon", "date": TODAY.isoformat()}
-    assert [task.hub for task in tasks.all_tasks(lisbon)] == ["Quiet", "Trips/Lisbon"]
+    assert [task.hub for task in tasks.all_tasks(lisbon)] == ["Quiet", "Quiet"]
     assert [item.hub for item in loops.open_loops(lisbon)] == ["Quiet.md"] * 4 + [""]
     assert "  - extra: keep" in fm.read(loop_path)[1]
     assert [item.hub for item in needs.parse_section(fm.read(root / "CURRENT.md")[1])] == ["Quiet.md", ""]
     assert next(hub for hub in state.build(lisbon, TODAY)["hubs"] if hub["title"] == "Lisbon")["phase"] == "fading"
+
+
+def test_a_merged_matter_named_again_is_its_survivor(lisbon, capsys, monkeypatch):
+    monkeypatch.setattr(Config, "today", lambda self: TODAY)
+    root = lisbon.vault_path
+    cli.main(["matters", "--vault", str(root), "--merge", "lisbon", "--into", "Quiet.md"])
+    capsys.readouterr()
+    vault = Vault(root)
+    assert matters.find(vault, "Lisbon") == "Quiet.md"
+    assert "- Lisbon" not in matters.held(lisbon, TODAY, quiet=True)
+
+    matters.record(lisbon, vault, TODAY, [{"name": "Lisbon", "now": "looking at hotels"}], "talked Lisbon", False)
+    assert matters.open_(lisbon, "Lisbon", TODAY)[0] == "Quiet.md"
+    assert tasks.note_name(lisbon, "Trips/Lisbon") == "Quiet"
+    fm.write(root / "Later.md", {"kind": "hub"}, "# Later\n")
+    with pytest.raises(SystemExit):
+        cli.main(["matters", "--vault", str(root), "--merge", "lisbon", "--into", "Later.md"])
+    assert "already been merged" in capsys.readouterr().err
+
+    hubs = {hub["title"]: hub for hub in state.build(lisbon, TODAY)["hubs"]}
+    assert hubs["Lisbon"]["phase"] == "fading"
+    assert hubs["Quiet"]["now"]["text"] == "looking at hotels"
 
 
 def test_split_validates_all_ids_before_creating_the_new_matter(lisbon, capsys, monkeypatch):

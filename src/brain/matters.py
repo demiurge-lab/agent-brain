@@ -56,6 +56,8 @@ def phase(kept: dict, today: date, open_work: bool, *, data: dict | None = None)
     if kept.get("aside") and not open_work and all(when <= kept["aside"]["date"] for when in recent):
         return "fading"
     data = data or {}
+    if data.get("merged_into"):
+        return "fading"
     farewell = data.get("farewell")
     if farewell and _latest_touch(kept) <= str(farewell) and today < date.fromisoformat(str(farewell)) + FAREWELL:
         return "current"
@@ -115,7 +117,8 @@ def listed(vault, today: date, *, quiet: bool = False) -> list[tuple[str, str]]:
     shown = []
     for source, note in vault.notes.items():
         work = source in worked
-        if not (work or fm.section(note.body, "Now") is not None) or not _is_matter(vault, source, standing):
+        if (not (work or fm.section(note.body, "Now") is not None) or note.data.get("merged_into")
+                or not _is_matter(vault, source, standing)):
             continue
         state_ = state(note.body, today)
         fading = phase(state_, today, work, data=note.data) == "fading"
@@ -126,15 +129,31 @@ def listed(vault, today: date, *, quiet: bool = False) -> list[tuple[str, str]]:
     return [(title, source) for _, title, source in sorted(shown, reverse=True)][:20]
 
 
-def find(vault, name: str) -> str | None:
-    """The matter a record names: a hub with that exact title, case aside, or the note the name resolves to."""
+def find(vault, name: str, *, follow: bool = True) -> str | None:
+    """The matter a record names: a hub with that exact title, case aside, or the note the name resolves to; a matter
+    merged into another is that one."""
     standing = _responsibility_hubs(vault)
     wanted = fm.plain(name)
     for source, note in sorted(vault.notes.items()):
         if fm.plain(note.stem) == wanted and _is_matter(vault, source, standing):
-            return source
+            return _survivor(vault, source) if follow else source
     source = vault.resolve(name)
-    return source if source and _is_matter(vault, source, standing) else None
+    if not source or not _is_matter(vault, source, standing):
+        return None
+    return _survivor(vault, source) if follow else source
+
+
+def _survivor(vault, source: str) -> str:
+    """The matter a merged one now lives in, following merges of merges."""
+    if not vault.notes[source].data.get("merged_into"):
+        return source
+    standing = _responsibility_hubs(vault)
+    ids = {note.data["matter_id"]: path for path, note in vault.notes.items() if note.data.get("matter_id")}
+    seen = {source}
+    while ((into := ids.get(vault.notes[source].data.get("merged_into"))) and into not in seen
+           and _is_matter(vault, into, standing)):
+        seen.add(source := into)
+    return source
 
 
 def _words(text: str) -> set[str]:
@@ -148,7 +167,7 @@ def _within(vault, name: str) -> str | None:
     fits = [(len(words), source) for source, note in vault.notes.items()
             if (words := _words(note.stem)) and words <= wanted and _is_matter(vault, source, standing)]
     best = max(fits, default=None)
-    return best[1] if best and [size for size, _ in fits].count(best[0]) == 1 else None
+    return _survivor(vault, best[1]) if best and [size for size, _ in fits].count(best[0]) == 1 else None
 
 
 def write(config, source: str, today: date, *, now: str | None = None, last: str | None = None,
@@ -296,6 +315,7 @@ def _linked_work(vault, source: str) -> dict:
     waiting = loops.open_loops(config) + ([item for item in needs.parse_section(current.body)
                                            if item.id not in dismissed] if current else [])
     return {"tasks": [task.tid for task in entries if tasks.is_open(task) and hubs.get(task.tid) == source],
+            "closed": [task.tid for task in entries if not tasks.is_open(task) and hubs.get(task.tid) == source],
             "items": [item.id for item in waiting if _item_hub(vault, item, hubs) == source]}
 
 
@@ -323,6 +343,7 @@ def _refile(config, source: str, today: date, task_ids, item_ids, *, unfiled: bo
 
 
 def merge(config, vault, source: str, target: str, today: date) -> dict:
+    from . import tasks
     if source == target:
         raise ValueError("a matter cannot merge into itself")
     origin = vault.notes[source]
@@ -335,6 +356,12 @@ def merge(config, vault, source: str, target: str, today: date) -> dict:
     origin_id = origin.data.get("matter_id") or "m-" + secrets.token_hex(4)
     linked = _linked_work(vault, source)
     moved = _refile(config, target, today, linked["tasks"], linked["items"])
+    # Finished work moves too, so the survivor keeps the absorbed matter's history.
+    for task in tasks.all_tasks(config):
+        if task.tid in linked["closed"]:
+            task.body = tasks._replace_field(task.body, "hub", tasks._field_value(config, "hub", target.removesuffix(".md")))
+            tasks.save_task(config, task, today)
+            moved["tasks"].append(task.tid)
     write(config, target, today, last=f"merged with {origin.stem}", drop=("aside",), fields={"matter_id": target_id})
     write(config, source, today, aside=f"merged into {destination.stem}", drop=("now", "soon"),
           fields={"matter_id": origin_id, "merged_into": target_id})
@@ -455,6 +482,7 @@ def task_moved(config, task, today: date, what: str) -> None:
     source = vault.resolve(task.hub)
     if not source or not _is_matter(vault, source, _responsibility_hubs(vault)):
         return
+    source = _survivor(vault, source)
     path = config.vault_path / source
     due, soon = fm.field(task.body, "Due") or "", None
     if what.startswith("handed off") and re.fullmatch(r"\d{4}-\d{2}-\d{2}", due) and due >= today.isoformat():
