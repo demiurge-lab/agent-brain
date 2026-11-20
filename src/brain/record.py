@@ -103,8 +103,11 @@ CONVERSATION = (
     "at 5 am on October 29 to visit Faisal; Hope is there too\"). Not what is already in your context, not what you did.\n"
     "- about: what in your owner's life this conversation was about, at most two: a project, a deal, a course or "
     "exam, a pursuit or game they are deep in, a trip, a move, a visit, an application, an event, a purchase, "
-    "something with a person in their life. Each `name` is the exact title of a "
-    "matter listed below, or a short new name for one (\"Lisbon trip\"); `now` is where the whole matter stands for "
+    "something with a person in their life. A matter will end, has a state that moves, and is named the way your owner "
+    "would name it if asked what is going on in their life: the larger thing the conversation serves, not the step it "
+    "was about (\"First Baldur's Gate playthrough\", not the character build; the project, not one service in it). "
+    "Each `name` is the exact title of a matter listed below, the exact title of a listed note that is itself a "
+    "matter, or a short new name for one (\"Lisbon trip\"); `now` is where the whole matter stands for "
     "your owner after this conversation, in one line they would say themselves: its listed now carried forward with "
     "what changed (\"flights booked; still need a place in Alfama\"), never only this conversation's detail, or null "
     "when the conversation did not change that. `aside` is true only when your owner set the matter aside, dropped it "
@@ -143,5 +146,8 @@ def held(config: Config) -> str:
                 ("Matters in your owner's life; name these exactly in about:", shown),
                 ("Matters that went quiet lately; if one comes up again, name it exactly in about:",
                  matters.held(config, config.today(), quiet=True)),
+                ("Notes you keep that are not matters; most are topics, which are not. Name one exactly in about only "
+                 "when it is itself something going on that will end:",
+                 [f"- {title}" for title in matters.topics(config)]),
                 ("Fields of work you have learned; name these exactly in learned:", learned.index(config)))
     return "".join(f"\n{heading}\n" + "\n".join(lines) for heading, lines in sections if lines)

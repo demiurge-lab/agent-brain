@@ -67,9 +67,9 @@ def test_loops_keep_their_hub_line():
 def lisbon(vault):
     config = Config.load(vault)
     (vault / "Trips").mkdir()
-    fm.write(vault / "Trips/Lisbon.md", {"kind": "hub"}, "# Lisbon\n" + NOW)
-    fm.write(vault / "Quiet.md", {"kind": "hub"}, "# Quiet\n## Now\n- **Last:** 2026-09-01 · done\n")
-    fm.write(vault / "Watch.md", {"kind": "hub", "skill": "brain-watch", "records": "receipts"}, "# Watch\n" + NOW)
+    fm.write(vault / "Trips/Lisbon.md", {"kind": "hub", "matter": True}, "# Lisbon\n" + NOW)
+    fm.write(vault / "Quiet.md", {"kind": "hub", "matter": True}, "# Quiet\n## Now\n- **Last:** 2026-09-01 · done\n")
+    fm.write(vault / "Watch.md", {"kind": "hub", "matter": True, "skill": "brain-watch", "records": "receipts"}, "# Watch\n" + NOW)
     fm.write(vault / "agent/Tasks.md", {}, "# Tasks\n\n" + Task("T-001", "Find a flat", "- **Hub:** [[Lisbon]]\n",
                                                                  {"state": "in_progress"}).render())
     fm.write(loops.path_for(config), {}, "## Open\n\n" + "\n".join(loops.render(item) for item in [
@@ -101,7 +101,7 @@ def test_state_gives_each_matter_its_state_waiting_and_phase(lisbon):
 def test_only_live_work_keeps_a_matter_current(vault):
     config = Config.load(vault)
     for title in ("Paper", "Inbox", "Visa", "Garage"):
-        fm.write(vault / f"{title}.md", {"kind": "hub"}, f"# {title}\n")
+        fm.write(vault / f"{title}.md", {"kind": "hub", "matter": True}, f"# {title}\n")
     fm.write(vault / "agent/Tasks.md", {}, "# Tasks\n\n" + "".join(Task(tid, title, f"- **Hub:** [[{hub}]]\n", fields).render()
              for tid, title, hub, fields in (
                  ("T-001", "Draft the paper", "Paper", {"state": "in_progress", "uses": "2026-11-05"}),
@@ -125,8 +125,8 @@ def test_an_open_task_moves_while_used_dated_or_worked_within_fresh():
 
 def test_a_matter_with_no_now_shows_its_live_task_status(vault):
     config = Config.load(vault)
-    fm.write(vault / "Paper.md", {"kind": "hub"}, "# Paper\n")
-    fm.write(vault / "Visa.md", {"kind": "hub"}, "# Visa\n" + NOW.replace("2026-11-10", "2026-11-11"))
+    fm.write(vault / "Paper.md", {"kind": "hub", "matter": True}, "# Paper\n")
+    fm.write(vault / "Visa.md", {"kind": "hub", "matter": True}, "# Visa\n" + NOW.replace("2026-11-10", "2026-11-11"))
     fm.write(vault / "agent/Tasks.md", {}, "# Tasks\n\n" + "".join(Task(tid, title, body, fields).render()
              for tid, title, body, fields in (
                  ("T-001", "Draft", "- **Hub:** [[Paper]]\n- **Status:** methods drafted\n"
@@ -143,7 +143,7 @@ def test_a_matter_with_no_now_shows_its_live_task_status(vault):
 
 
 def test_a_private_hub_line_is_not_exported(lisbon, vault):
-    fm.write(vault / "Secret.md", {"kind": "hub", "tier": "private"}, "# Secret\n")
+    fm.write(vault / "Secret.md", {"kind": "hub", "matter": True, "tier": "private"}, "# Secret\n")
     fm.write(loops.path_for(lisbon), {}, "## Open\n\n" + loops.render(
         loops.Item("owed", "Hidden", "2026-11-11 09:00", "Trips/Lisbon", "Rohan", hub="Secret.md")) + "\n")
     built = state.build(lisbon, TODAY)
@@ -159,7 +159,7 @@ def owner(vault, monkeypatch, tmp_path):
     monkeypatch.setenv("AGENT_HOME", str(tmp_path / "home"))
     monkeypatch.setattr(Config, "today", lambda self: TODAY)
     (tmp_path / "home").mkdir()
-    fm.write(vault / "Lisbon trip.md", {"kind": "hub", "tier": "warm"}, "# Lisbon trip\n\n## Findings\n- Alfama is hilly.\n")
+    fm.write(vault / "Lisbon trip.md", {"kind": "hub", "matter": True, "tier": "warm"}, "# Lisbon trip\n\n## Findings\n- Alfama is hilly.\n")
     return Config.load(vault)
 
 
@@ -190,7 +190,7 @@ def test_a_new_name_becomes_a_matter_on_its_second_sighting(owner):
     talk(owner, "Ohio move again", [{"name": "Ohio move", "now": "picked Columbus"}], at=datetime(2026, 11, 20, 9, 0))
     data, body = fm.read(owner.vault_path / "Ohio move.md")
     assert re.fullmatch(r"m-[0-9a-f]{8}", data.pop("matter_id"))
-    assert data == {"kind": "hub", "tier": "warm"}
+    assert data == {"kind": "hub", "matter": True, "tier": "warm"}
     assert "- **Now:** picked Columbus · 2026-11-20" in body
 
 
@@ -200,11 +200,38 @@ def test_a_sighting_a_month_old_does_not_count(owner):
     assert not (owner.vault_path / "Kayak.md").exists()
 
 
-def test_a_first_sighting_that_opens_a_loop_is_a_matter_at_once(owner):
-    talk(owner, "Planned Rohan's visit", [{"name": "Rohan's visit", "now": "he lands Dec 3"}],
+def test_a_loop_alone_does_not_open_a_matter(owner):
+    talk(owner, "Planned Rohan's visit", [{"name": "Rohan's visit", "now": "he lands soon"}],
          loops=[{"kind": "promised", "text": "Send Rohan the address", "with": "Rohan", "due": None}])
-    assert (owner.vault_path / "Rohan's visit.md").exists()
+    assert not (owner.vault_path / "Rohan's visit.md").exists()
+    talk(owner, "Rohan's visit again", [{"name": "Rohan's visit", "now": None}], at=datetime(2026, 11, 13, 9, 0))
     assert loops.open_loops(owner)[0].hub == "Rohan's visit.md"
+
+
+def test_an_unmarked_hub_is_a_topic_not_a_matter(owner, capsys):
+    fm.write(owner.vault_path / "Baldur's Gate 3.md", {"kind": "hub"}, "# Baldur's Gate 3\n## Now\n- **Last:** 2026-11-10 · built a Hexblade\n")
+    assert matters.find(Vault(owner.vault_path), "Baldur's Gate 3") is None
+    hub, = [entry for entry in state.build(owner, TODAY)["hubs"] if entry["title"] == "Baldur's Gate 3"]
+    assert hub["phase"] is None
+    assert "not matters; most are topics, which are not. Name one exactly in about only when it is itself something going on that will end:\n- Baldur's Gate 3" in record.held(owner)
+
+
+def test_a_topic_named_twice_is_marked_instead_of_copied(owner):
+    fm.write(owner.vault_path / "Ohio move.md", {"kind": "hub"}, "# Ohio move\n\n## Findings\n- Columbus is cheaper.\n")
+    talk(owner, "Mentioned the Ohio move", [{"name": "Ohio move", "now": None}])
+    assert not fm.read(owner.vault_path / "Ohio move.md")[0].get("matter")
+    talk(owner, "Ohio move again", [{"name": "ohio move", "now": "picked Columbus"}], at=datetime(2026, 11, 20, 9, 0))
+    data, body = fm.read(owner.vault_path / "Ohio move.md")
+    assert data["matter"] is True and data["matter_id"]
+    assert "- **Now:** picked Columbus · 2026-11-20" in body and "Columbus is cheaper" in body
+    assert [path.name for path in owner.vault_path.glob("*hio*")] == ["Ohio move.md"]
+
+
+def test_the_owner_makes_a_topic_a_matter(owner, capsys):
+    fm.write(owner.vault_path / "Golf.md", {"kind": "hub"}, "# Golf\n")
+    source, how = matters.open_(owner, "golf", TODAY)
+    data = fm.read(owner.vault_path / "Golf.md")[0]
+    assert (source, how) == ("Golf.md", "opened") and data["matter"] is True and data["owner_made"] is True
 
 
 def test_only_the_owner_writes_matters(owner):
@@ -214,9 +241,9 @@ def test_only_the_owner_writes_matters(owner):
 
 
 def test_a_responsibility_or_unsafe_name_is_never_a_matter(owner):
-    fm.write(owner.vault_path / "Watch.md", {"kind": "hub", "skill": "brain-watch", "records": "receipts"}, "# Watch\n")
-    talk(owner, "Checked the watch", [{"name": "Watch", "now": "fine"}, {"name": "../../etc", "now": None}],
-         needsYou="Want the watch to run hourly?")
+    fm.write(owner.vault_path / "Watch.md", {"kind": "hub", "matter": True, "skill": "brain-watch", "records": "receipts"}, "# Watch\n")
+    talk(owner, "Checked the watch", [{"name": "Watch", "now": "fine"},
+                                      {"name": "../../etc", "now": None, "soon": "2026-11-20 · check"}])
     assert "## Now" not in fm.read(owner.vault_path / "Watch.md")[1]
     assert not (owner.vault_path / ".." / "etc.md").exists()
     assert (owner.vault_path / "etc.md").exists()
@@ -237,16 +264,16 @@ def test_a_first_sighting_with_a_date_is_a_matter_and_keeps_the_sooner_soon(owne
         "text": "book dinner", "date": "2026-12-01"}
 
 
-def test_an_ask_opens_and_links_its_matter_without_judging_its_wording(owner):
+def test_an_ask_alone_does_not_open_a_matter(owner):
     talk(owner, "Mentioned the Ohio move", [{"name": "Ohio move", "now": None}], needsYou="Proceed?")
-    assert (owner.vault_path / "Ohio move.md").exists()
+    assert not (owner.vault_path / "Ohio move.md").exists()
     question, = needs.items(owner, owner.today())
-    assert question.text == "Proceed?" and question.hub == "Ohio move.md"
+    assert question.text == "Proceed?"
 
 
 def test_a_matter_named_by_its_path_is_found(owner, vault):
     (vault / "Trips").mkdir()
-    fm.write(vault / "Trips/Lisbon.md", {"kind": "hub"}, "# Lisbon\n")
+    fm.write(vault / "Trips/Lisbon.md", {"kind": "hub", "matter": True}, "# Lisbon\n")
     talk(owner, "Talked Lisbon", [{"name": "Trips/Lisbon", "now": "booked"}])
     assert "**Now:** booked" in fm.read(vault / "Trips/Lisbon.md")[1]
     assert not (vault / "Trips Lisbon.md").exists()
@@ -258,7 +285,7 @@ def test_a_task_serving_a_matter_moves_its_last_and_soon(owner):
         Task("T-001", "Find a flat in Alfama", "- **Hub:** [[Lisbon trip]]\n- **Due:** 2026-11-18\n", {"state": "ready"}),
         Task("T-002", "Tidy the watch", "- **Hub:** [[Watch]]\n", {"state": "ready"}),
     ]))
-    fm.write(owner.vault_path / "Watch.md", {"kind": "hub", "skill": "brain-watch", "records": "receipts"}, "# Watch\n")
+    fm.write(owner.vault_path / "Watch.md", {"kind": "hub", "matter": True, "skill": "brain-watch", "records": "receipts"}, "# Watch\n")
     tasks.hand_off(owner, "T-001", TODAY, "")
     kept = matters.state(fm.read(owner.vault_path / "Lisbon trip.md")[1], TODAY)
     assert kept["last"] == {"text": "handed off Find a flat in Alfama", "date": "2026-11-11"}
@@ -285,7 +312,7 @@ def test_the_morning_sets_soon_from_the_calendar_and_opens_at_most_two(owner):
         matters.soon(owner, "Move", date(2026, 11, 28), "movers", TODAY, open_=True)
     data, _ = fm.read(owner.vault_path / "Dentist.md")
     assert re.fullmatch(r"m-[0-9a-f]{8}", data.pop("matter_id"))
-    assert data == {"kind": "hub", "tier": "warm", "opened": "2026-11-11"}
+    assert data == {"kind": "hub", "matter": True, "tier": "warm", "opened": "2026-11-11"}
     listed = matters.lines(owner, TODAY)
     assert "- Lisbon trip · soon 2026-11-20: fly to Lisbon" in listed and len(listed) == 3
 
@@ -314,7 +341,7 @@ def test_the_record_is_shown_where_each_matter_stands(owner):
 def test_the_record_recognises_recently_quiet_matters(owner, capsys, field, age, recognised):
     when = (TODAY - timedelta(days=age)).isoformat()
     value = f"taking a break · {when}" if field == "Now" else f"{when} · taking a break"
-    fm.write(owner.vault_path / "Kayak trip.md", {"kind": "hub", "matter_id": "m-1234abcd"},
+    fm.write(owner.vault_path / "Kayak trip.md", {"kind": "hub", "matter": True, "matter_id": "m-1234abcd"},
              f"# Kayak trip\n## Now\n- **{field}:** {value}\n")
     cli.main(["record-spec", "--vault", str(owner.vault_path), "--json"])
     prompt = json.loads(capsys.readouterr().out)["held"]
@@ -334,10 +361,10 @@ def test_quiet_matters_use_the_latest_date_and_exclude_private_and_standing_note
     body = "# Paused\n## Now\n- **Last:** 2026-08-01 · planned\n- **Aside:** 2026-11-10 · paused\n"
     for title, fields in (("Paused", {}), ("Private", {"tier": "private"}),
                           ("Watch", {"skill": "brain-watch", "records": "receipts"})):
-        fm.write(owner.vault_path / f"{title}.md", {"kind": "hub", **fields}, body)
-    fm.write(owner.vault_path / "Active trip.md", {"kind": "hub"}, "# Active trip\n" + NOW)
-    fm.write(owner.vault_path / "Undated.md", {"kind": "hub"}, "# Undated\n## Now\n")
-    fm.write(owner.vault_path / "Working.md", {"kind": "hub"}, body)
+        fm.write(owner.vault_path / f"{title}.md", {"kind": "hub", "matter": True, **fields}, body)
+    fm.write(owner.vault_path / "Active trip.md", {"kind": "hub", "matter": True}, "# Active trip\n" + NOW)
+    fm.write(owner.vault_path / "Undated.md", {"kind": "hub", "matter": True}, "# Undated\n## Now\n")
+    fm.write(owner.vault_path / "Working.md", {"kind": "hub", "matter": True}, body)
     fm.write(owner.vault_path / "agent/Tasks.md", {}, "# Tasks\n" + Task(
         "T-001", "Pack gear", "- **Hub:** [[Working]]\n", {"state": "in_progress", "uses": "2026-11-11"}).render())
     assert matters.listed(Vault(owner.vault_path), TODAY, quiet=True) == [("Paused", "Paused.md")]
@@ -346,7 +373,7 @@ def test_quiet_matters_use_the_latest_date_and_exclude_private_and_standing_note
 def test_quiet_matters_are_shown_most_recent_first_and_capped(owner):
     for age in range(8, 30):
         when = (TODAY - timedelta(days=age)).isoformat()
-        fm.write(owner.vault_path / f"Trip {age}.md", {"kind": "hub"},
+        fm.write(owner.vault_path / f"Trip {age}.md", {"kind": "hub", "matter": True},
                  f"# Trip {age}\n## Now\n- **Last:** {when} · planned\n")
     assert [title for title, _ in matters.listed(Vault(owner.vault_path), TODAY, quiet=True)] == [
         f"Trip {age}" for age in range(8, 28)]
@@ -354,10 +381,10 @@ def test_quiet_matters_are_shown_most_recent_first_and_capped(owner):
 
 def test_the_night_backfills_ids_once_and_state_keeps_them_after_a_move(owner, capsys):
     root = owner.vault_path
-    fm.write(root / "Quiet.md", {"kind": "hub", "matter_id": "m-1234abcd"},
+    fm.write(root / "Quiet.md", {"kind": "hub", "matter": True, "matter_id": "m-1234abcd"},
              "# Quiet\n## Now\n- **Last:** 2026-08-01 · finished\n")
-    fm.write(root / "Watch.md", {"kind": "hub", "skill": "brain-watch", "records": "receipts"}, "# Watch\n")
-    fm.write(root / "Private.md", {"kind": "hub", "tier": "private"}, "# Private\n")
+    fm.write(root / "Watch.md", {"kind": "hub", "matter": True, "skill": "brain-watch", "records": "receipts"}, "# Watch\n")
+    fm.write(root / "Private.md", {"kind": "hub", "matter": True, "tier": "private"}, "# Private\n")
     before = {hub["title"]: hub["id"] for hub in state.build(owner, TODAY)["hubs"]}
     assert before["Lisbon trip"] is None and before["Quiet"] == "m-1234abcd"
     argv = ["nightly", "--vault", str(root), "--date", TODAY.isoformat(), "--write", "--stage", "before"]
@@ -432,8 +459,8 @@ def test_the_owner_sets_a_matter_aside(owner, capsys, what, as_json):
     assert matters.phase(kept, TODAY, False) == "fading"
 
 
-@pytest.mark.parametrize("name, data", [("Missing", None), ("Private", {"kind": "hub", "tier": "private"}),
-                                      ("Watch", {"kind": "hub", "skill": "brain-watch", "records": "receipts"}),
+@pytest.mark.parametrize("name, data", [("Missing", None), ("Private", {"kind": "hub", "matter": True, "tier": "private"}),
+                                      ("Watch", {"kind": "hub", "matter": True, "skill": "brain-watch", "records": "receipts"}),
                                       ("Draft", {"kind": "draft"})])
 def test_aside_rejects_names_that_are_not_matters(owner, capsys, name, data):
     if data:
@@ -481,9 +508,9 @@ def test_a_matter_set_aside_fades_until_it_comes_up_again(owner):
 
 def test_a_matter_with_live_work_is_listed_whatever_its_now(vault):
     config = Config.load(vault)
-    fm.write(vault / "Paper.md", {"kind": "hub"}, "# Paper\n")
-    fm.write(vault / "Visa.md", {"kind": "hub"}, "# Visa\n\n## Now\n- **Now:** forms filed · 2026-09-01\n")
-    fm.write(vault / "Inbox.md", {"kind": "hub"}, "# Inbox\n\n## Now\n- **Now:** sorted · 2026-09-01\n")
+    fm.write(vault / "Paper.md", {"kind": "hub", "matter": True}, "# Paper\n")
+    fm.write(vault / "Visa.md", {"kind": "hub", "matter": True}, "# Visa\n\n## Now\n- **Now:** forms filed · 2026-09-01\n")
+    fm.write(vault / "Inbox.md", {"kind": "hub", "matter": True}, "# Inbox\n\n## Now\n- **Now:** sorted · 2026-09-01\n")
     fm.write(vault / "agent/Tasks.md", {}, "# Tasks\n\n" + "".join(Task(tid, title, f"- **Hub:** [[{hub}]]\n", fields).render()
              for tid, title, hub, fields in (
                  ("T-001", "Draft the paper", "Paper", {"state": "in_progress", "uses": "2026-11-11"}),
@@ -514,9 +541,9 @@ def test_the_evening_is_offered_each_one_off_event_once(owner, monkeypatch):
 
 
 def test_a_new_name_holding_a_matters_title_lands_on_it(owner):
-    fm.write(owner.vault_path / "Garden.md", {"kind": "hub"}, "# Garden\n")
-    fm.write(owner.vault_path / "House.md", {"kind": "hub"}, "# House\n")
-    fm.write(owner.vault_path / "House Garden.md", {"kind": "hub"}, "# House Garden\n")
+    fm.write(owner.vault_path / "Garden.md", {"kind": "hub", "matter": True}, "# Garden\n")
+    fm.write(owner.vault_path / "House.md", {"kind": "hub", "matter": True}, "# House\n")
+    fm.write(owner.vault_path / "House Garden.md", {"kind": "hub", "matter": True}, "# House Garden\n")
     talk(owner, "Sketched the irrigation plan", [{"name": "Garden irrigation plan", "now": "layout agreed"}])
     assert "- **Now:** layout agreed" in fm.read(owner.vault_path / "Garden.md")[1]
     assert not (owner.vault_path / "Garden irrigation plan.md").exists()
@@ -578,10 +605,10 @@ def test_a_merged_matter_named_again_is_its_survivor(lisbon, capsys, monkeypatch
     assert matters.find(vault, "Lisbon") == "Quiet.md"
     assert "- Lisbon" not in matters.held(lisbon, TODAY, quiet=True)
 
-    matters.record(lisbon, vault, TODAY, [{"name": "Lisbon", "now": "looking at hotels"}], "talked Lisbon", False)
+    matters.record(lisbon, vault, TODAY, [{"name": "Lisbon", "now": "looking at hotels"}], "talked Lisbon")
     assert matters.open_(lisbon, "Lisbon", TODAY)[0] == "Quiet.md"
     assert tasks.note_name(lisbon, "Trips/Lisbon") == "Quiet"
-    fm.write(root / "Later.md", {"kind": "hub"}, "# Later\n")
+    fm.write(root / "Later.md", {"kind": "hub", "matter": True}, "# Later\n")
     with pytest.raises(SystemExit):
         cli.main(["matters", "--vault", str(root), "--merge", "lisbon", "--into", "Later.md"])
     assert "already been merged" in capsys.readouterr().err
@@ -658,7 +685,7 @@ def test_opening_files_still_loose_work_from_an_earlier_sighting(owner, capsys, 
 def test_a_loop_that_stayed_loose_is_filed_when_its_matter_can_open(owner):
     root = owner.vault_path
     path = root / "Garden.md"
-    fm.write(path, {"kind": "hub", "tier": "private"}, "# Garden\n")
+    fm.write(path, {"kind": "hub", "matter": True, "tier": "private"}, "# Garden\n")
     talk(owner, "Planned the planting", [{"name": "Garden"}], at=AT - timedelta(days=1),
          loops=[{"kind": "when", "text": "Send the planting dates", "due": "2026-11-20"}])
     loop, = loops.open_loops(owner)

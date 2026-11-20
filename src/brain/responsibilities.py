@@ -548,7 +548,7 @@ def adopt(config: Config, names: list[str], *, hub: str | None = None, title: st
         preview = copy(vault)
         preview.notes = dict(vault.notes)
         preview.notes[entry["hub"]] = Note(entry["hub"], target, data, body)
-        hub_data = {key: value for key, value in old_hub.data.items() if key not in ("skill", "records")} if old_hub else None
+        hub_data = {key: value for key, value in old_hub.data.items() if key not in ("skill", "records", "matter")} if old_hub else None
         if old_hub:
             preview.notes[old_hub.rel] = replace(old_hub, data=hub_data)
         planned, changes = _synced(preview, remaining)
