@@ -469,6 +469,19 @@ def cmd_matters(args):
         raise SystemExit("with --soon, pass --open without a name; --soon names the matter")
     if args.aside is not None and args.open is not None:
         raise SystemExit("use either --open or --aside")
+    if args.mark is not None:
+        if args.open is not None:
+            raise SystemExit("use either --open or --mark")
+        try:
+            with vault_lock(args.config):
+                source = matters.mark(args.config, args.mark)
+                data, _ = fm.read(args.config.vault_path / source)
+        except ValueError as error:
+            print(error, file=sys.stderr)
+            sys.exit(1)
+        print(json.dumps({"source": source, "id": data["matter_id"]}, ensure_ascii=False, indent=2)
+              if args.json else f"{source}: a matter")
+        return
     if args.open is not None and any(name is not None for name in (args.merge, args.split, args.keep)):
         raise SystemExit("use --open separately from --merge, --split and --keep")
     if (args.merge is None) != (args.into is None):
@@ -2271,6 +2284,7 @@ def main(argv=None):
     mode.add_argument("--merge", metavar="NAME", help="merge this matter into an existing one named with --into")
     mode.add_argument("--split", metavar="NAME", help="split selected work from this matter into a new one named with --name")
     mode.add_argument("--keep", metavar="NAME", help="keep a matter current until the owner sets it aside")
+    mode.add_argument("--mark", metavar="NAME", help="make an existing hub a matter, with its id")
     s.add_argument("--into", metavar="NAME", help="destination matter for --merge")
     s.add_argument("--name", metavar="NEW", help="new matter for --split")
     s.add_argument("--tasks", metavar="IDS", default="", help="comma-separated open task IDs to split off")

@@ -108,7 +108,7 @@ CONVERSATION = (
     "was about (\"First Baldur's Gate playthrough\", not the character build; the project, not one service in it). "
     "Each `name` is the exact title of a matter listed below, the exact title of a listed note that is itself a "
     "matter, or a short new name for one (\"Lisbon trip\"); `now` is where the whole matter stands for "
-    "your owner after this conversation, in one line they would say themselves: its listed now carried forward with "
+    "your owner after this conversation, in one short line they would say themselves, never naming them: its listed now carried forward with "
     "what changed (\"flights booked; still need a place in Alfama\"), never only this conversation's detail, or null "
     "when the conversation did not change that. `aside` is true only when your owner set the matter aside, dropped it "
     "or it is over. Never who messaged, asked or acknowledged whom, or what you or "
