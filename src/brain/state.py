@@ -115,6 +115,9 @@ def _hubs(vault: Vault, task_entries: list[dict], responsibility_entries: list[d
     out = []
     task_hubs = {task["id"]: _hub(vault, task["hub"]) for task in task_entries if task["hub"]}
     folders = {entry["hub"]: entry for entry in responsibility_entries if entry["folder"]}
+    from . import continuation
+    chunks = continuation.last_worked(vault.config)
+    moved = {task.tid for task in tasks.all_tasks(vault.config) if matters.moving(task, today, chunks)}
     absorbed = {}
     for source, note in sorted(vault.notes.items()):
         if note.data.get("matter_id") and (target := note.data.get("merged_into")) and _public(vault, source):
@@ -148,7 +151,8 @@ def _hubs(vault: Vault, task_entries: list[dict], responsibility_entries: list[d
             kept = matters.state(note.body, today)
             entry["waiting"] = [item["id"] for item in waiting if _belongs(item, source, hub_tasks, task_hubs)]
             # A set-aside task, or the owner's work put off for later, is decided for now: it keeps nothing current.
-            live = [task for task in linked if task["open"] and task["state"] != "set_aside" and not task["later"]]
+            live = [task for task in linked if task["open"] and task["state"] != "set_aside" and not task["later"]
+                    and task["id"] in moved]
             if kept["now"] is None:
                 kept["now"] = _task_now(live, today)
             entry.update(kept, phase=matters.phase(kept, today, bool(entry["waiting"]) or bool(live), data=note.data))
