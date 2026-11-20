@@ -100,15 +100,27 @@ def test_state_gives_each_matter_its_state_waiting_and_phase(lisbon):
 
 def test_only_live_work_keeps_a_matter_current(vault):
     config = Config.load(vault)
-    for title in ("Paper", "Inbox", "Visa"):
+    for title in ("Paper", "Inbox", "Visa", "Garage"):
         fm.write(vault / f"{title}.md", {"kind": "hub"}, f"# {title}\n")
     fm.write(vault / "agent/Tasks.md", {}, "# Tasks\n\n" + "".join(Task(tid, title, f"- **Hub:** [[{hub}]]\n", fields).render()
              for tid, title, hub, fields in (
-                 ("T-001", "Draft the paper", "Paper", {"state": "in_progress"}),
-                 ("T-002", "Sort the inbox", "Inbox", {"state": "set_aside"}),
-                 ("T-003", "Renew the visa", "Visa", {"state": "yours", "later": "true"}))))
-    phases = {hub["title"]: hub["phase"] for hub in state.build(config, TODAY)["hubs"] if hub["title"] in ("Paper", "Inbox", "Visa")}
-    assert phases == {"Paper": "current", "Inbox": "fading", "Visa": "fading"}
+                 ("T-001", "Draft the paper", "Paper", {"state": "in_progress", "uses": "2026-11-05"}),
+                 ("T-002", "Sort the inbox", "Inbox", {"state": "set_aside", "uses": "2026-11-11"}),
+                 ("T-003", "Renew the visa", "Visa", {"state": "yours", "later": "true", "uses": "2026-11-11"}),
+                 ("T-004", "Clear the garage", "Garage", {"state": "yours", "uses": "2026-11-03"}))))
+    hubs = {hub["title"]: hub for hub in state.build(config, TODAY)["hubs"]}
+    assert {title: hubs[title]["phase"] for title in ("Paper", "Inbox", "Visa", "Garage")} == {
+        "Paper": "current", "Inbox": "fading", "Visa": "fading", "Garage": "fading"}
+    assert [title for title, _ in matters.listed(Vault(config.vault_path), TODAY)] == ["Paper"]
+
+
+def test_an_open_task_moves_while_used_dated_or_worked_within_fresh():
+    task = Task("T-001", "Clear the garage", "- **Status:** sorting 2026-11-01\n- **Due:** 2026-12-01\n",
+                {"state": "yours", "uses": "2026-11-02"})
+    assert not matters.moving(task, TODAY, {})
+    assert matters.moving(task, TODAY, {"T-001": "2026-11-10T09:00:00"})
+    task.add_use("2026-11-06")
+    assert matters.moving(task, TODAY, {})
 
 
 def test_a_matter_with_no_now_shows_its_live_task_status(vault):
@@ -327,7 +339,7 @@ def test_quiet_matters_use_the_latest_date_and_exclude_private_and_standing_note
     fm.write(owner.vault_path / "Undated.md", {"kind": "hub"}, "# Undated\n## Now\n")
     fm.write(owner.vault_path / "Working.md", {"kind": "hub"}, body)
     fm.write(owner.vault_path / "agent/Tasks.md", {}, "# Tasks\n" + Task(
-        "T-001", "Pack gear", "- **Hub:** [[Working]]\n", {"state": "in_progress"}).render())
+        "T-001", "Pack gear", "- **Hub:** [[Working]]\n", {"state": "in_progress", "uses": "2026-11-11"}).render())
     assert matters.listed(Vault(owner.vault_path), TODAY, quiet=True) == [("Paused", "Paused.md")]
 
 
@@ -474,8 +486,8 @@ def test_a_matter_with_live_work_is_listed_whatever_its_now(vault):
     fm.write(vault / "Inbox.md", {"kind": "hub"}, "# Inbox\n\n## Now\n- **Now:** sorted · 2026-09-01\n")
     fm.write(vault / "agent/Tasks.md", {}, "# Tasks\n\n" + "".join(Task(tid, title, f"- **Hub:** [[{hub}]]\n", fields).render()
              for tid, title, hub, fields in (
-                 ("T-001", "Draft the paper", "Paper", {"state": "in_progress"}),
-                 ("T-002", "Book the interview", "Visa", {"state": "in_progress"}),
+                 ("T-001", "Draft the paper", "Paper", {"state": "in_progress", "uses": "2026-11-11"}),
+                 ("T-002", "Book the interview", "Visa", {"state": "in_progress", "uses": "2026-11-11"}),
                  ("T-003", "Sort the inbox", "Inbox", {"state": "set_aside"}))))
     shown = {title for title, _ in matters.listed(Vault(config.vault_path), TODAY)}
     assert {"Paper", "Visa"} <= shown and "Inbox" not in shown

@@ -50,7 +50,8 @@ def state(body: str, today: date) -> dict:
 
 
 def phase(kept: dict, today: date, open_work: bool, *, data: dict | None = None) -> str:
-    """current: open work on it, or something happened lately (a past Soon counts as having happened);
+    """current: work moving on it or waiting on the owner, or something happened lately (a past Soon counts as having
+    happened);
     soon: a Soon within AHEAD; else fading, which the app does not show."""
     recent = [kept[key]["date"] for key in ("now", "last", "soon") if kept[key]]
     if kept.get("aside") and not open_work and all(when <= kept["aside"]["date"] for when in recent):
@@ -66,6 +67,14 @@ def phase(kept: dict, today: date, open_work: bool, *, data: dict | None = None)
     if kept["soon"] and today < date.fromisoformat(kept["soon"]["date"]) <= today + AHEAD:
         return "soon"
     return "fading"
+
+
+def moving(task, today: date, worked: dict[str, str]) -> bool:
+    """An open task keeps its matter current only while it moves: made, worked or talked about within FRESH. One the
+    owner ignores lets its matter fade like any quiet one. `worked` is each task's last worker chunk."""
+    from .tasks import DATE_RE
+    days = (*task.uses, *task.uses_inferred, *DATE_RE.findall(task.body), worked.get(task.tid, "")[:10])
+    return any((today - FRESH).isoformat() <= day <= today.isoformat() for day in days)
 
 
 def _latest_touch(kept: dict) -> str:
@@ -90,13 +99,13 @@ def _is_matter(vault, source: str, standing: set[str]) -> bool:
 
 
 def _worked(vault, today: date) -> set[str]:
-    from . import loops, needs, tasks
+    from . import continuation, loops, needs, tasks
     from .state import _hub
     config = vault.config
-    entries = tasks.all_tasks(config)
+    entries, chunks = tasks.all_tasks(config), continuation.last_worked(config)
     hubs = {task.tid: _hub(vault, task.hub) for task in entries if task.hub}
     live = {hubs[task.tid] for task in entries if task.tid in hubs and tasks.is_open(task)
-            and task.task_state != "set_aside" and not task.later}
+            and task.task_state != "set_aside" and not task.later and moving(task, today, chunks)}
     waiting = loops.open_loops(config) + [item for item in needs.items(vault, today) if item.kind == "ask"]
     live.update(_item_hub(vault, item, hubs) for item in waiting)
     unresolved = {link.removesuffix(".md").casefold() for link in live if link and link not in vault.notes}
@@ -226,7 +235,7 @@ def farewells(vault, today: date, report: list[str]) -> set[str]:
         held = state(note.body, today)
         latest = _latest_touch(held)
         if farewell := data.get("farewell"):
-            if data.get("kept") or latest > str(farewell):
+            if data.get("kept") or latest > str(farewell) or source in worked:
                 _cancel_farewell(vault.config, source, data)
                 fm.write(vault.root / source, data, note.body)
                 changed.update((source, "CURRENT.md"))
@@ -305,10 +314,10 @@ def keep(config, source: str, today: date) -> None:
 
 
 def _linked_work(vault, source: str) -> dict:
-    from . import loops, needs, tasks
+    from . import continuation, loops, needs, tasks
     from .state import _hub
     config = vault.config
-    entries = tasks.all_tasks(config)
+    entries, chunks = tasks.all_tasks(config), continuation.last_worked(config)
     hubs = {task.tid: _hub(vault, task.hub) for task in entries if task.hub}
     current = vault.notes.get("CURRENT.md")
     dismissed = needs.dismissed_ids(config)
