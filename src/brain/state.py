@@ -155,7 +155,8 @@ def _hubs(vault: Vault, task_entries: list[dict], responsibility_entries: list[d
                     and task["id"] in moved]
             if kept["now"] is None:
                 kept["now"] = _task_now(live, today)
-            entry.update(kept, phase=matters.phase(kept, today, bool(entry["waiting"]) or bool(live), data=note.data))
+            entry.update(kept, phase=matters.phase(kept, today, bool(entry["waiting"]) or bool(live), data=note.data)
+                         if note.data.get("matter") is True else None)
         out.append(entry)
     return out
 

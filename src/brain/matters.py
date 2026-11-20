@@ -1,4 +1,4 @@
-"""A matter is a hub that is not a responsibility: something the owner's life holds now or soon. Its `## Now` section
+"""A matter is something going on in the owner's life, kept as a hub marked `matter: true`. Its `## Now` section
 keeps where it stands (`**Now:** <text> · <date>`), the next dated thing and the latest thing that happened
 (`**Soon:**` and `**Last:**`, each `<date> · <text>`), and an `**Aside:**` when the owner set it aside. See
 docs/matters.md in the demiurge repo."""
@@ -90,12 +90,49 @@ def _responsibility_hubs(vault) -> set[str]:
     return {entry["hub"] for entry in responsibilities.discover(vault)}
 
 
-def _is_matter(vault, source: str, standing: set[str]) -> bool:
+def _is_topic(vault, source: str, standing: set[str]) -> bool:
     from .state import _public
     note = vault.notes.get(source)
     return (note is not None and source not in standing and vault.kind_for(source) == "hub"
             and note.data.get("kind", "hub") == "hub" and not (note.data.get("skill") and note.data.get("records"))
             and _public(vault, source))
+
+
+def _is_matter(vault, source: str, standing: set[str]) -> bool:
+    return _is_topic(vault, source, standing) and vault.notes[source].data.get("matter") is True
+
+
+def _unmarked(vault, source: str, standing: set[str]) -> bool:
+    note = vault.notes[source]
+    return not note.data.get("matter") and not note.data.get("merged_into") and _is_topic(vault, source, standing)
+
+
+def _unmarked_hub_titled(vault, name: str) -> str | None:
+    standing, wanted = _responsibility_hubs(vault), fm.plain(name)
+    return next((source for source, note in sorted(vault.notes.items())
+                 if fm.plain(note.stem) == wanted and _unmarked(vault, source, standing)), None)
+
+
+TOPICS_SHOWN = 40
+
+
+def topics(config) -> list[str]:
+    """The titles of the hubs that are not matters, most recently used first, so the record can mark one that is
+    itself a matter rather than open a narrower rival."""
+    from .vault import Vault
+    vault = Vault(config.vault_path)
+    standing = _responsibility_hubs(vault)
+    found = [(max(map(str, note.data.get("uses") or [""])), note.stem) for source, note in vault.notes.items()
+             if _unmarked(vault, source, standing)]
+    return [title for _, title in sorted(found, reverse=True)][:TOPICS_SHOWN]
+
+
+def _mark(config, source: str) -> None:
+    path = config.vault_path / source
+    data, body = fm.read(path)
+    data["matter"] = True
+    data.setdefault("matter_id", "m-" + secrets.token_hex(4))
+    fm.write(path, data, body)
 
 
 def _worked(vault, today: date) -> set[str]:
@@ -279,7 +316,7 @@ def _create(vault, name: str, *, opened: date | None = None, owner_made: bool = 
     path = vault.root / f"{name}.md"
     if not name or path.exists():
         raise ValueError(f"{name!r} cannot be a matter: a note of that name exists or the name is empty")
-    data = {"kind": "hub", "tier": "warm", "matter_id": "m-" + secrets.token_hex(4)}
+    data = {"kind": "hub", "tier": "warm", "matter": True, "matter_id": "m-" + secrets.token_hex(4)}
     if opened is not None:
         data["opened"] = opened.isoformat()
     if owner_made:
@@ -304,6 +341,10 @@ def open_(config, name: str, today: date, what: str | None = None) -> tuple[str,
             write(config, source, today, now=what, last="brought back by the owner", drop=("aside",))
             return source, "revived"
         return source, "kept"
+    if source := _unmarked_hub_titled(vault, name):
+        _mark(config, source)
+        write(config, source, today, now=what, last="made a matter by the owner", fields={"owner_made": True})
+        return source, "opened"
     source = _create(vault, name, owner_made=True)
     write(config, source, today, now=what, last=_file_earlier(config, source, today) or "opened by the owner")
     return source, "opened"
@@ -419,15 +460,15 @@ def _file_earlier(config, source: str, today: date, seen: dict | None = None) ->
     return " and ".join(counts) + " filed here" if counts else None
 
 
-def record(config, vault, today: date, about: list[dict], headline: str, opens: bool, *, session: str = "",
+def record(config, vault, today: date, about: list[dict], headline: str, *, session: str = "",
            item_ids: list[str] | tuple[str, ...] = ()) -> str | None:
     """Apply a conversation record's `about` to the owner's matters: each named matter gets its Now (when the record
     gave one), its Soon (when it named a date sooner than the one kept) and a Last of what happened; a matter the owner
     set aside trades its Now and Soon for an Aside, so it fades until it comes up again. A new name holding a
-    matter's whole title is that matter; any other new name becomes
-    a matter on its second sighting within SIGHTED, or on its first when it names a date or the same record opens a loop
-    or an ask; until then it is only remembered. Files the conversation's new tasks and loops under the first matter
-    it finds, and returns its path for the ask. The caller holds the vault lock."""
+    matter's whole title is that matter; any other new name becomes a matter on its second sighting within SIGHTED, or
+    on its first when it names a date, marking the hub of that title when there is one; until then it is only
+    remembered. Files the conversation's new tasks and loops under the first matter it finds, and returns its path for
+    the ask. The caller holds the vault lock."""
     seen = _sightings()
     cutoff = (today - SIGHTED).isoformat()
     sighted = set()
@@ -449,11 +490,15 @@ def record(config, vault, today: date, about: list[dict], headline: str, opens: 
             previous = seen.get(key, [])
             dates = previous["dates"] if isinstance(previous, dict) else previous
             recent = any(day >= cutoff for day in dates)
-            if not (opens or soon or recent):
+            if not (soon or recent):
                 sighted.add(key)
                 continue
             try:
-                source = _create(vault, name)
+                if source := _unmarked_hub_titled(vault, given) or _unmarked_hub_titled(vault, name):
+                    _mark(config, source)
+                    vault.load()
+                else:
+                    source = _create(vault, name)
             except ValueError:
                 sighted.add(key)
                 continue   # a note of that name that is not a matter (private, a responsibility) is left alone
@@ -523,7 +568,10 @@ def soon(config, name: str, when: date, what: str, today: date, *, open_: bool =
         opened = sum(note.data.get("opened") == today.isoformat() for note in vault.notes.values())
         if opened >= OPENS_A_DAY:
             raise ValueError(f"{OPENS_A_DAY} matters were already opened today; leave this one")
-        source = _create(vault, name, opened=today)
+        if source := _unmarked_hub_titled(vault, name):
+            _mark(config, source)
+        else:
+            source = _create(vault, name, opened=today)
         filed = _file_earlier(config, source, today)
     path = config.vault_path / source
     kept = state(fm.read(path)[1], today)["soon"]

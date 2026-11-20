@@ -74,8 +74,7 @@ def append_entry(config: Config, record: dict, platform: str, at: datetime, *,
                 except ValueError as error:
                     print(f"skipped loop: {error}", file=sys.stderr)
             if owner and record.get("about"):
-                opens = bool(opened or _clean(record.get("needsYou")))
-                hub = matters.record(config, vault, local.date(), record["about"], headline, opens,
+                hub = matters.record(config, vault, local.date(), record["about"], headline,
                                      session=session, item_ids=opened) or ""
     for closure in record.get("closed") or []:
         which, outcome, why = ((closure, "done", "closed in conversation") if isinstance(closure, str) else
