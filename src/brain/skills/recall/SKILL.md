@@ -18,6 +18,7 @@ When {human_name} asks to change a routine or agrees to standing work you offere
 <!-- /enterprise -->
 A pending migration carries its own instructions in the session context.
 Before writing anything to the vault (a task or handoff, a loop, an ask, an idea, a correction, a goal, a work, a channel row), load `{prefix}write`.
+A request that will not finish in about ten minutes (a sweep of every open item, a batch of dozens, a build or audit across a codebase) is handed off before you start it, even when it says "now" or "run it now": `brain task new "<title>" --source "<their words>" --delivers "<what they will get>" --handoff` as your first step, then one line saying a worker has it and they will hear in this conversation. Starting it here first only loses the work at the turn's limit.
 
 ## When to use
 A request about a person, project, task, past decision or dated fact that the session context and the notes recalled under the message do not answer, or a name in the directory that matches when nothing loaded covers it.
