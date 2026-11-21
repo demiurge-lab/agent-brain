@@ -25,8 +25,12 @@ DOTTED = re.compile(r"[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*")
 EVIDENCE = ("corrections", "team", "outcomes", "rulings", "work", "machine", "consults")
 BUILTIN_LENS = "solves_the_ask"   # every role's first reviewer: does the work solve what was asked, at its scope
 KEYS = ("kind", "template", "tier", "produces", "actions", "corrections", "sources", "notes", "lenses", "decisions",
-        "measures", "screen", "process")
+        "measures", "screen", "process", "mandate")
 PROCESS = ("gate", "review")   # steps of the role skill a template can switch off, to measure what each costs and earns
+SOURCE_KINDS = ("plan", "chat", "repo", "tracker", "documents")
+UNDOABLE = ("create", "edit", "link", "comment", "label", "cancel", "mark_done")
+LIMITS = {"proposals": 5, "waiting": 3, "inferred": 1}
+CONNECTION = re.compile(r"[a-z][a-z0-9-]*:[^/\s:]+(/\S.*)?")
 STRUCK = "Struck"   # the section a person moves a line into to strike it; deleting it in a commit strikes it too
 LESSON = re.compile(r"^- (?P<text>.+?)(?: \^(?P<id>[0-9a-f]{4}))?[ \t]*$")
 SOURCES = re.compile(r"\(([^()]*(?:\([^()]*\)[^()]*)*)\)(?: \*\((?:candidate|rule[^)]*)\)\*)?$")
@@ -47,6 +51,7 @@ class Role:
     measures: dict[str, str]
     screen: dict = field(default_factory=dict)   # kinds, worth (a scale, lowest first) and keep: what the screen asks
     process: dict = field(default_factory=lambda: {step: True for step in PROCESS})
+    mandate: dict = field(default_factory=dict)
 
     def shapes(self) -> list[str]:
         return [entry["shape"] for entry in self.notes]
@@ -187,13 +192,69 @@ def parse(text: str, name: str = "", known_sources: set[str] | None = None) -> t
     if not isinstance(process, dict) or set(process) - set(PROCESS) or not all(isinstance(v, bool) for v in process.values()):
         problems.append(f"{where}: process maps {' and '.join(PROCESS)} to true or false")
         process = {}
+    mandate = _mandate(data.get("mandate"), problems, where)
     if problems:
         return None, problems
     return Role(name, data["template"], data["produces"], actions, corrections, sources, notes,
                 [{"lens": BUILTIN_LENS, "covers": "does the work solve what was asked, at the scope asked; "
                   "cites the ask, always a blocker, and flags growth beyond it"}, *lenses],
                 decisions, {str(k): str(v) for k, v in measures.items()}, screen,
-                {step: bool(process.get(step, True)) for step in PROCESS}), []
+                {step: bool(process.get(step, True)) for step in PROCESS}, mandate), []
+
+
+def _mandate(raw, problems: list[str], where: str) -> dict:
+    if raw is None:
+        return {}
+    keys = {"outcome", "manager", "covers", "check", "sources", "may", "limits"}
+    if not isinstance(raw, dict) or set(raw) - keys:
+        problems.append(f"{where}: mandate has {', '.join(sorted(keys))}")
+        return {}
+    for key in ("outcome", "manager"):
+        if not isinstance(raw.get(key), str) or not raw[key].strip():
+            problems.append(f"{where}: mandate.{key} must be a nonempty string")
+    if "check" in raw and (not isinstance(raw["check"], str) or not raw["check"].strip()):
+        problems.append(f"{where}: mandate.check names a routine")
+    covers = raw.get("covers", [])
+    if not isinstance(covers, list) or not all(isinstance(area, str) and area for area in covers):
+        problems.append(f"{where}: mandate.covers is a list of Owners.md areas")
+        covers = []
+    sources: dict[str, list[str]] = {}
+    given = raw.get("sources", {})
+    if not isinstance(given, dict):
+        problems.append(f"{where}: mandate.sources maps {', '.join(SOURCE_KINDS)} to connections")
+        given = {}
+    for kind, value in given.items():
+        refs = [value] if isinstance(value, str) else value
+        if kind not in SOURCE_KINDS:
+            problems.append(f"{where}: mandate.sources: unknown kind {kind!r}; kinds are {', '.join(SOURCE_KINDS)}")
+        elif not isinstance(refs, list) or not refs or not all(isinstance(ref, str) and CONNECTION.fullmatch(ref) for ref in refs):
+            problems.append(f"{where}: mandate.sources.{kind} is a connection such as github:acme, or a list of them")
+        elif kind == "plan" and len(refs) > 1:
+            problems.append(f"{where}: mandate.sources.plan is one place; a role has one plan")
+        else:
+            sources[kind] = refs
+    may: dict[str, list[str]] = {}
+    grants = raw.get("may", {})
+    if not isinstance(grants, dict):
+        problems.append(f"{where}: mandate.may maps a source kind to the actions it may take there")
+        grants = {}
+    for kind, allowed in grants.items():
+        if kind not in sources:
+            problems.append(f"{where}: mandate.may.{kind}: the mandate names no {kind} source to change")
+        elif (not isinstance(allowed, list) or not allowed
+              or not all(isinstance(a, str) and a in UNDOABLE for a in allowed)):
+            problems.append(f"{where}: mandate.may.{kind} lists undoable actions from {', '.join(UNDOABLE)}")
+        else:
+            may[kind] = allowed
+    limits = dict(LIMITS)
+    given_limits = raw.get("limits", {})
+    if not isinstance(given_limits, dict) or set(given_limits) - set(LIMITS) or not all(
+            isinstance(n, int) and not isinstance(n, bool) and n >= 0 for n in given_limits.values()):
+        problems.append(f"{where}: mandate.limits sets {', '.join(LIMITS)} to whole numbers")
+    else:
+        limits |= given_limits
+    return {"outcome": raw.get("outcome"), "manager": raw.get("manager"), "covers": covers,
+            "check": raw.get("check"), "sources": sources, "may": may, "limits": limits}
 
 
 def _screen(raw, problems: list[str], where: str) -> dict:

@@ -1138,10 +1138,18 @@ def cmd_roles(args):
                 for problem in index.problems:
                     print(f"problem: {problem}", file=sys.stderr)
         elif action == "show":
-            index = roles.read_index(config, args.name)
+            index, mandate = roles.read_index(config, args.name), roles.load(config, args.name).mandate
             if args.json:
-                print(json.dumps(asdict(index), ensure_ascii=False, indent=2))
+                print(json.dumps(asdict(index) | {"mandate": mandate}, ensure_ascii=False, indent=2))
             else:
+                if mandate:
+                    print(f"outcome: {mandate['outcome']} · manager {mandate['manager']}"
+                          + (f" · covers {', '.join(mandate['covers'])}" if mandate["covers"] else "")
+                          + (f" · check {mandate['check']}" if mandate["check"] else ""))
+                    for kind, refs in mandate["sources"].items():
+                        may = mandate["may"].get(kind)
+                        print(f"{kind}: {', '.join(refs)}" + (f" (may: {', '.join(may)})" if may else ""))
+                    print("limits: " + ", ".join(f"{k} {v}" for k, v in mandate["limits"].items()))
                 for lesson in index.lessons:
                     print(f"^{lesson.id} · {lesson.status} · {'person' if lesson.human else 'learned'} · {lesson.note} · "
                           f"{fm.cut(lesson.text, 20)}")
