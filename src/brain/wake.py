@@ -95,6 +95,23 @@ def candidates(config: Config, synced: list[tuple[str, Path]], seen_calendar: di
     return out
 
 
+def followed(home: Path) -> list[dict]:
+    """Feed files that changed: a feed is something the intellect chose to follow, so every change wakes, unscreened.
+    Feed folders exist only for live grants, so they are read whatever the registry says."""
+    out = []
+    for path in sorted((home / "channels").glob("*/feeds/*/*.md")):
+        try:
+            text = path.read_text(encoding="utf-8")
+            data, body = fm.read(path)
+        except (OSError, ValueError):
+            continue
+        account, _, feed = path.parts[-4:-1]
+        key = f"{account}/feeds/{feed}/{path.name}"
+        out.append({"id": f"{key}@{hashlib.sha1(text.encode()).hexdigest()[:8]}", "followed": True, "item": {
+            "channel": "feed", "account": account, "subject": f"{feed} {data.get('key', path.stem)}: {body.strip()}"}})
+    return out
+
+
 def score(config: Config, accounts: list[str], items: list[dict]) -> list[float | None]:
     """Jev's yes-probability per item through Demiurge, or 1.0 for every item when the gate is off; None where it
     could not answer, which the caller treats as a wake so a screening outage never hides anything."""
@@ -128,10 +145,12 @@ def screen(config: Config, home: Path, synced: list[tuple[str, Path]], now: date
     first = state is None
     state = state or {}
     seen, calendar = state.get("items", {}), state.get("calendar", {})
-    found = candidates(config, synced, calendar)
+    found = candidates(config, synced, calendar) + followed(home)
     new = [c for c in found if c["id"] not in seen and not c.get("kept")]
+    screened = [c for c in new if not c.get("followed")]
     # The first screen only learns what is already there: a deploy must not wake for days of old mail.
-    scores = [0.0] * len(new) if first else score(config, [name for name, _ in synced], new) if new else []
+    asked = iter([0.0] * len(screened) if first else score(config, [name for name, _ in synced], screened) if screened else [])
+    scores = [1.0 if c.get("followed") else next(asked) for c in new]
     log = []
     for c, p in zip(new, scores):
         item = c["item"]

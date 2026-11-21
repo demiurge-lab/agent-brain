@@ -7,6 +7,9 @@ actions:
 - git.push_branch
 - git.open_draft_pr
 - ci.run
+- review.read
+- review.reply
+- git.request_review
 corrections:
 - event: review.changes_requested
   weight: 3
