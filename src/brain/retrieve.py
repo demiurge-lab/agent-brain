@@ -1,6 +1,7 @@
 """Deterministic, read-only retrieval over note metadata and local links."""
 from __future__ import annotations
 
+import math
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -15,6 +16,8 @@ STOPWORDS = set("a an and are as at be been but by can could did do does for fro
                 "this those to was we were what when where which who why will with would you your".split())
 FACTORS = {"hot": 1.5, "warm": 1.0, "cold": 0.6}
 EXCLUDED = {"log", "dream", "primed"}
+MIN_NOTES_TO_WEIGHT = 100
+HOP_SHARE = 1 / 3
 
 
 @dataclass
@@ -40,7 +43,14 @@ def eligible(vault: Vault, rel: str) -> bool:
             and vault.notes[rel].data.get("kind") not in EXCLUDED)
 
 
-def metadata_score(vault: Vault, note, terms: set[str]) -> Candidate:
+def weights(bodies: dict[str, set[str]], terms: set[str]) -> dict[str, float]:
+    n = len(bodies)
+    if n < MIN_NOTES_TO_WEIGHT:
+        return dict.fromkeys(terms, 1.0)
+    return {term: (math.log(n / max(1, sum(term in words for words in bodies.values()))) / math.log(n)) ** 2 for term in terms}
+
+
+def metadata_score(vault: Vault, note, terms: dict[str, float]) -> Candidate:
     tier = note.data.get("tier", "warm")
     candidate = Candidate(vault.config.link(note.rel), tier)
     title = " ".join(re.findall(r"^# (.+)$", note.body, re.M))
@@ -48,9 +58,9 @@ def metadata_score(vault: Vault, note, terms: set[str]) -> Candidate:
               ("index line", index.index_line(note), 2),
               ("heading", " ".join(re.findall(r"^## (.+)$", note.body, re.M)), 1))
     for name, text, weight in fields:
-        matches = terms & tokens(text)
+        matches = terms.keys() & tokens(text)
         if matches:
-            candidate.add(weight * len(matches) * FACTORS.get(tier, 1.0),
+            candidate.add(weight * sum(terms[m] for m in matches) * FACTORS.get(tier, 1.0),
                           f"{name}: {', '.join(sorted(matches))}")
     return candidate
 
@@ -64,7 +74,8 @@ def spread(vault: Vault, candidates: dict[str, Candidate]) -> None:
             if target in candidates:
                 linked.setdefault(target, []).append(rel)
     for target, sources in linked.items():
-        candidates[target].add(1.0, "linked from " + ", ".join(vault.config.link(rel) for rel in sources))
+        bonus = min(1.0, HOP_SHARE * max(candidates[rel].score for rel in sources))
+        candidates[target].add(bonus, "linked from " + ", ".join(vault.config.link(rel) for rel in sources))
 
 
 def id_matches(vault: Vault, terms: set[str]) -> list[Candidate]:
@@ -95,18 +106,20 @@ def text(vault: Vault, candidate: Candidate, form: str) -> str:
 
 def search(vault: Vault, query: str, limit: int = 12, within: set[str] | None = None) -> list[Candidate]:
     """The notes that best match `query`; with `within`, only those notes, and no task IDs."""
-    terms = tokens(query)
-    if not terms:
+    query_terms = tokens(query)
+    if not query_terms:
         return []
-    candidates = {rel: metadata_score(vault, note, terms) for rel, note in vault.notes.items()
-                  if eligible(vault, rel) and (within is None or rel in within)}
+    notes = {rel: note for rel, note in vault.notes.items() if eligible(vault, rel)}
+    bodies = {rel: tokens(note.body) for rel, note in notes.items()}
+    terms = weights(bodies, query_terms)
+    candidates = {rel: metadata_score(vault, note, terms) for rel, note in notes.items() if within is None or rel in within}
     spread(vault, candidates)
     for rel, candidate in candidates.items():
         if candidate.score == 0:
-            matches = terms & tokens(vault.notes[rel].body)
+            matches = terms.keys() & bodies[rel]
             if matches:
-                candidate.add(min(1.5, 0.5 * len(matches)), "body match: " + ", ".join(sorted(matches)))
+                candidate.add(min(2.0, sum(terms[m] for m in matches)), "body match: " + ", ".join(sorted(matches)))
     scored = [candidate for candidate in candidates.values() if candidate.score > 0]
     if within is None:
-        scored.extend(id_matches(vault, terms))
+        scored.extend(id_matches(vault, query_terms))
     return sorted(scored, key=lambda candidate: (-candidate.score, candidate.path, candidate.reason))[:max(0, limit)]
