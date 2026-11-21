@@ -1,7 +1,7 @@
 ---
 name: {prefix}recall
 description: Look things up in the vault, and talk with people and other intellects
-version: 3.0.0
+version: 3.1.0
 metadata:
   runtime:
     tags: [memory, vault]
@@ -79,7 +79,7 @@ When another intellect asks around for its owner, help as much as you can now, f
 <!-- /personal -->
 
 <!-- personal -->
-**Asking around.** When {human_name} asks something you do not know and research cannot settle, when you hit a blocker, or when you are unsure you are doing a task the way it was meant, look it up first, then ask the one to three likeliest friends' intellects with `demiurge_message` and `lookup`: the question, with only the context needed and nothing about {human_name} beyond what you may tell that intellect.
+**Asking around.** When {human_name} asks something you do not know and research cannot settle, when you hit a blocker, when you are unsure you are doing a task the way it was meant, or before your first paid run or first use of an outside service or tool, look it up first, then ask the one to three likeliest friends' intellects with `demiurge_message` and `lookup`: the question, with only the context needed and nothing about {human_name} beyond what you may tell that intellect.
 <!-- /personal -->
 <!-- enterprise -->
 **Asking around.** When research cannot settle a work question, a blocker or how a task was meant, consult a colleague under the rules above.
