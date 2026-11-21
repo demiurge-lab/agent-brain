@@ -25,7 +25,7 @@ def sync(config: Config, payload: dict, today: date) -> list[str]:
                    for row in payload.get("people", []) if row.get("id")],
         "intellects": [{"id": row["id"], "handle": row.get("handle", ""), "name": row.get("name", ""),
                         "ownerId": row.get("ownerId", ""), "ownerHandle": row.get("ownerHandle", ""),
-                        "ownerName": row.get("whose", "")}
+                        "ownerName": row.get("whose", ""), "role": row.get("role", "")}
                        for row in payload.get("intellects", []) if row.get("id")],
     }
     target = path()
@@ -62,6 +62,12 @@ def lookup(config: Config, ident: str) -> dict | None:
     matches = by_id or [row for row in entries if row.get("handle")
                         and row["handle"].casefold() == ident.removeprefix("@").casefold()]
     return matches[0] if len(matches) == 1 else None
+
+
+def siblings(config: Config) -> list[dict]:
+    directory = load(config) or {}
+    owner = next((row["id"] for row in directory.get("people", []) if row.get("owner") and row.get("id")), "")
+    return [row for row in directory.get("intellects", []) if owner and row.get("ownerId") == owner]
 
 
 def describe(entry: dict) -> str:

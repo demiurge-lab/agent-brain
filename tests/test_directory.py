@@ -50,7 +50,7 @@ def test_sync_normalizes_skips_idless_entries_and_reconciles(config, payload):
         "people": [{"id": "k57090", "handle": "rpaimehta", "name": "Rohan Mehta", "owner": True},
                    {"id": "k57roshan", "handle": "orpheus", "name": "Roshan Amir", "owner": False}],
         "intellects": [{"id": "j573", "handle": "tars", "name": "Tars", "ownerName": "Rohan Mehta",
-                        "ownerId": "k57090", "ownerHandle": "rpaimehta"}],
+                        "ownerId": "k57090", "ownerHandle": "rpaimehta", "role": ""}],
     }
     assert report == ["synced 2 people, 1 intellect",
                       "added demiurge:k57090 (@rpaimehta) to people/rpaimehta/Profile.md"]
@@ -91,7 +91,7 @@ def test_lookup_intellect_owner_fields_and_unknowns(config, payload):
     directory.sync(config, payload, TODAY)
     found = directory.lookup(config, "@TARS")
     assert found == {"id": "j573", "handle": "tars", "name": "Tars", "kind": "intellect",
-                     "ownerId": "k57090", "ownerHandle": "rpaimehta", "ownerName": "Rohan Mehta"}
+                     "ownerId": "k57090", "ownerHandle": "rpaimehta", "ownerName": "Rohan Mehta", "role": ""}
     assert directory.lookup(config, "demiurge:j573") == found
     for ident in ("unknown", "Rohan Mehta", "slack:k57090", "k5709", "@rpaimehta-extra"):
         assert directory.lookup(config, ident) is None
@@ -275,3 +275,36 @@ def test_a_moved_profile_stub_is_never_an_identity(config, payload):
     directory.sync(config, payload, TODAY)
     assert "Demiurge:" not in stub.read_text() and "`k57090`" in real.read_text()
     assert [note.rel for note in identity.profiles(Vault(config.vault_path))] == ["people/Rohan_Mehta/Profile.md"]
+
+
+def test_a_sibling_is_named_by_the_delivery_alone_and_gets_owner_knowledge_with_requests_held(config, payload):
+    payload["intellects"].append({"id": "j57talos", "handle": "talos", "name": "Talos", "whose": "Rohan Mehta",
+                                  "ownerId": "k57090", "ownerHandle": "rpaimehta", "role": "coding: PRs and CI"})
+    payload["intellects"].append({"id": "j57orphan", "handle": "orphan", "name": "Orphan", "whose": "Roshan Amir",
+                                  "ownerId": "k57roshan", "ownerHandle": "orpheus"})
+    directory.sync(config, payload, TODAY)
+    vault = Vault(config.vault_path)
+    human = config.human_name
+    ids = {"platform": "demiurge", "user_id": "talos", "user_id_alt": "j57talos"}
+    assert identity.role(vault, config, "demiurge", ("talos", "j57talos"), delivered_as_sibling=True) == "sibling"
+    assert identity.role(vault, config, "slack", ("j57talos",), delivered_as_sibling=True) != "sibling"
+    block = session_context.build(vault, config, delivered_as_sibling=True, **ids)
+    assert block.startswith(f"This session is with Talos, your sibling: another intellect of {human}'s")
+    assert "Its role: coding: PRs and CI." in block and "including what others told you" in block
+    assert "a request, not" in block and "demiurge_tell_owner" in block
+    assert "What you may tell" not in block and not session_context.answering(block, config)
+    assert f"{human}'s other intellects: Tars (@tars); Talos (@talos), coding: PRs and CI." in block
+    assert "Orphan" not in block
+    unflagged = session_context.build(vault, config, **ids)
+    assert "your sibling" not in unflagged
+    owner = session_context.build(vault, config, platform="cli")
+    assert f"{human}'s other intellects: Tars (@tars); Talos (@talos)" in owner
+    routine = session_context.build(vault, config, platform="cron")
+    assert "other intellects" in routine
+
+
+def test_an_owner_with_no_other_intellects_sees_no_siblings_line(config, payload):
+    payload["intellects"] = [row for row in payload["intellects"] if row.get("ownerId") != "k57090"]
+    directory.sync(config, payload, TODAY)
+    vault = Vault(config.vault_path)
+    assert "other intellects" not in session_context.build(vault, config, platform="cli")

@@ -1954,7 +1954,7 @@ def cmd_session_context(args):
     text = session_context.build(vault, args.config,
                                  platform=args.platform, user_id=args.user_id,
                                  user_id_alt=args.user_id_alt, user_name=args.user_name,
-                                 chat_id=args.chat_id)
+                                 chat_id=args.chat_id, delivered_as_sibling=args.sibling)
     owner = identity.is_owner(args.config, args.platform, tuple(value for value in (args.user_id, args.user_id_alt) if value))
     routine = args.platform == "cron" and not (args.user_id or args.user_id_alt)
     if "goals" in args.config.context.sections and (owner or routine):
@@ -1966,8 +1966,8 @@ def cmd_session_context(args):
                     goals.acknowledge(args.config, events)
     if args.json:
         who = identity.role(vault, args.config, args.platform,
-                            tuple(value for value in (args.user_id, args.user_id_alt) if value))
-        print(json.dumps({"block": text, "owner": who == "owner", "member": who == "member",
+                            tuple(value for value in (args.user_id, args.user_id_alt) if value), args.sibling)
+        print(json.dumps({"block": text, "owner": who == "owner", "member": who == "member", "sibling": who == "sibling",
                           "answering": session_context.answering(text, args.config)}, ensure_ascii=False))
     elif text:
         print(text)
@@ -2682,6 +2682,7 @@ def main(argv=None):
     s = sub.add_parser("session-context", parents=[vault])
     for option in ("platform", "user-id", "user-id-alt", "user-name", "chat-id"):
         s.add_argument("--" + option, default="")
+    s.add_argument("--sibling", action="store_true", help="Demiurge delivered this message from an intellect with the same owner")
     s.add_argument("--ack-notices", action="store_true", help="acknowledge displayed app-change notices for this owner or routine session")
     s.add_argument("--json", action="store_true"); s.set_defaults(fn=cmd_session_context)
 

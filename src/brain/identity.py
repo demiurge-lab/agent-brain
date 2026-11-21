@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import re
 from pathlib import PurePosixPath
+from typing import Literal
 
 from .config import Config
 from .runtime import ROUTINE_PLATFORMS
@@ -90,16 +91,19 @@ def is_owner(config: Config, platform: str, user_ids: tuple[str, ...]) -> bool:
     return platform == "cli" or listed(config.owner_user_ids, platform, user_ids)
 
 
-def role(vault: Vault, config: Config, platform: str, user_ids: tuple[str, ...]) -> str:
-    """'owner', 'intellect', 'member', 'person' or 'unknown'.
+Role = Literal["owner", "sibling", "intellect", "member", "person", "unknown"]
 
-    In an organisation's intellect anyone else the runtime names is a member: the door (Slack's bridge, the stage's
+
+def role(vault: Vault, config: Config, platform: str, user_ids: tuple[str, ...], delivered_as_sibling: bool = False) -> Role:
+    """In an organisation's intellect anyone else the runtime names is a member: the door (Slack's bridge, the stage's
     sign-in) admits only members, so the engine trusts it. A routine's own run and a registered intellect never are;
     nor is a speaker the runtime does not name. A personal intellect knows a person by exactly one profile."""
     if is_owner(config, platform, user_ids):
         return "owner"
     if not user_ids or platform in ROUTINE_PLATFORMS:
         return "unknown"
+    if delivered_as_sibling and platform == "demiurge" and config.edition != "enterprise":
+        return "sibling"
     agents = matching_agents(vault, config, user_ids, platform)
     if config.edition == "enterprise":
         return "intellect" if agents else "member" if platform else "unknown"
