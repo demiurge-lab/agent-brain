@@ -34,7 +34,7 @@ def test_title_beats_body_and_pinning_has_no_bonus(retrieval_vault):
     assert candidates[0].path == "memory/Acme Context.md"
     assert candidates[0].score == 3.0 and "title/path: acme" in candidates[0].reason
     body = next(candidate for candidate in candidates if candidate.path.endswith("/Body.md"))
-    assert body.score == 0.5 and body.reason == "body match: acme"
+    assert body.score == 1.0 and body.reason == "body match: acme"
 
 
 def test_one_hop_raises_a_linked_note_but_does_not_spread_twice(retrieval_vault):
@@ -76,7 +76,7 @@ def test_tokens_preserve_ids_and_dates_and_exact_body_hits(retrieval_vault):
         "t-023", "2026-10-05", "alice", "example"}
     retrieval_vault.notes["Body.md"].body += "\n2026-10-05 compiler compilertools adapter\n"
     candidate = retrieve.search(retrieval_vault, "2026-10-05 compiler adapter")[0]
-    assert candidate.score == 1.5 and "body match" in candidate.reason
+    assert candidate.score == 2.0 and "body match" in candidate.reason
     assert not retrieve.search(retrieval_vault, "compile")
 
 
@@ -128,3 +128,12 @@ def test_a_warm_task_gives_its_archived_entry_and_an_archived_only_task_is_found
     [gone] = retrieve.search(vault, "t-003")
     assert gone.path == "memory/agent/Tasks Archive/T-003.md#T-003"
     assert "GONE_BODY" in retrieve.text(vault, gone, "full") and retrieve.text(vault, gone, "snippet") == "Gone task"
+
+
+def test_a_rare_word_outranks_common_ones_in_a_vault_big_enough_to_count(vault):
+    for i in range(retrieve.MIN_NOTES_TO_WEIGHT):
+        fm.write(vault / f"Daily {i}.md", {"tier": "warm"}, "# Daily\nI just want to keep going.\n")
+    fm.write(vault / "Hope Career Context.md", {"tier": "warm"}, "# Hope\nShe dislikes Madison and wants out.\n")
+    fm.write(vault / "Plans.md", {"tier": "hot", "index_line": "What to keep doing"}, "# Plans\nJust keep at it.\n")
+    top = retrieve.search(Vault(vault), "what if I just moved to madison, should I keep going")[0]
+    assert top.path == "memory/Hope Career Context.md" and top.reason.endswith(": madison")
