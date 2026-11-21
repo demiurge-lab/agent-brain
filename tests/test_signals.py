@@ -436,3 +436,19 @@ def test_evening_signal_lists_what_the_evening_decides_and_nothing_when_quiet(mo
     needs.resolve(config, "Keep the Friday call?", "Sam moved the call", config.today())
     signal = json.loads(run(capsys, config, "evening-signal"))
     assert not signal["openAsks"] and "Keep the Friday call?" in signal["answeredToday"][0]
+
+
+def test_a_followed_feed_change_wakes_unscreened_whatever_the_registry_says(monitor, scored):
+    config, home, clock = monitor
+    _, asked = scored
+    folder = home / "channels/acme/feeds/my-prs"
+    folder.mkdir(parents=True)
+    pr = folder / "812.md"
+    pr.write_text('---\nfeed: "my-prs"\nkey: "812"\nreviewDecision: null\n---\nnew\n')
+    first = signals.watch(config)
+    assert "812" not in first   # the first screen only learns what is there
+    pr.write_text('---\nfeed: "my-prs"\nkey: "812"\nreviewDecision: "CHANGES_REQUESTED"\n---\nchanged: reviewDecision\n')
+    woke = signals.watch(config)
+    assert "acme/feeds/my-prs/812.md@" in woke and "· changed · my-prs 812: changed: reviewDecision" in woke
+    assert asked == []   # what the intellect chose to follow is not asked about
+    assert signals.watch(config) == woke

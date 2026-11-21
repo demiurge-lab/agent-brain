@@ -1,7 +1,7 @@
 ---
 name: {prefix}role
 description: Do a piece of work as one of the organisation's roles, from brief to draft, with its decisions sorted and its work reviewed
-version: 1.2.0
+version: 1.3.0
 metadata:
   runtime:
     tags: [roles, work]
@@ -36,4 +36,6 @@ Only blockers ask for a revision; should-fix and nit findings are worth a look, 
 `brain roles actions <role>` says which connection does each of the role's actions here (for engineering: `git.push_branch`, `git.open_draft_pr`, `ci.run`), as `use <connection> <action>`; call exactly those, and if one is missing or switched off, stop and say so rather than finding another way. Push a branch and open a draft, then register it: `brain roles work <role> add <work id> --title "<title>" --link <url>`, and write down what you expect the reviewers to raise (the findings you left, the calls you flagged): `brain roles predict <role> --work <id> --expect "<one thing>"`, repeated, or with none if you expect nothing. Then record how each ask went: `brain roles asked <role> --work <id> --verdict needed|findable|unneeded --about "<what you asked>"`, and do the same for any answered later. The description says what changed and why in a few sentences, the decisions you flagged with whose they are, what you asked and what was answered, and the checks you ran. Never merge. The manager reviews first, then the area's owner.
 
 ## When a review comes in on your draft
+Answer it the day you see it. Read the whole review first (`use` the role's `review.read` action and the pull request), then take each comment in turn: fix it and push, or, when it is wrong, reply (`review.reply`) with your reason in a sentence or two citing the code or a note line; a call that is someone else's goes through the gate as in step 2. Reply to each comment you fixed with what changed and the commit, so every comment has a fix or an answer. When all of a review's comments are fixed or answered and its checks pass, ask that reviewer to look again (`git.request_review`), once for the round, never once per push and never while a request from you is still waiting on them. A check that fails on your draft is yours to fix too; rerun it once (`ci.run`) only when the failure has nothing to do with your change.
+
 Each comment, change requested or edit someone else pushed is a correction. Fix the work, then record and file it the way the study skill does (`brain roles correction <role> add`, then `file`). Add `--miss retrieval` when a line already covered it but you didn't read it for this task, or `--miss "new taste"` when the team changed its mind; otherwise the kind of miss is worked out for you. When the comment is about who decides ("check with Kim before changing the schema", "always ask me about exports"), file it as a decision right, not a lesson: `brain roles correction <role> file <id> --decides "<area>" --person <platform>:<id>`, with `--always` when they said always. The gate reads it on the very next plan. Then check your other open work against what you just learned, the same day.

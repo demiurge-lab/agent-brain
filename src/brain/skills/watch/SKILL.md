@@ -1,7 +1,7 @@
 ---
 name: {prefix}watch
 description: Follow through on due loops, new channel files and dropped conversations when the monitor sees a change
-version: 3.7.0
+version: 3.8.0
 metadata:
   runtime:
     tags: [routine, day]
@@ -32,7 +32,7 @@ These are the commands this pass uses; they are complete as written, so never sp
    - *Waiting.* A `waiting` loop past 24 hours gets one nudge to whoever it waits on, if appropriate, or stays; keep nudged ids in the state file.
    When the next step is yours but you do not know how to take it, ask around first (your recall skill's Asking around) and keep the loop open for the answer.
    A loop you cannot close (the tool is gone, the channel is `revoked`) is one line to the person saying so, never silence.
-3. **What is new on the channels.** Every live row of the registry (`{agent_dir}/Channels.md`) whose `read` is not none, opened the way its row says, for what changed since the last window only: its newest items, never a search over everything. A row kept as synced files starts with the items under `channels:` (files under `$AGENT_HOME/channels/`), then the rest of the mail listing from step 1; a row opened by a command, a browser profile, a remote machine or a room is checked the way it says, since this run is already awake. Check later replies before treating anything as open. Acting on it, a draft or a calendar change, goes through the command the row names, never by editing a file. Reconcile only important, actionable facts into the owning task: status, deadline, waiting-on, next step. A date-conditioned commitment becomes a `when` loop.
+3. **What is new on the channels.** Every live row of the registry (`{agent_dir}/Channels.md`) whose `read` is not none, opened the way its row says, for what changed since the last window only: its newest items, never a search over everything. A row kept as synced files starts with the items under `channels:` (files under `$AGENT_HOME/channels/`), then the rest of the mail listing from step 1; a row opened by a command, a browser profile, a remote machine or a room is checked the way it says, since this run is already awake. Check later replies before treating anything as open. Acting on it, a draft or a calendar change, goes through the command the row names, never by editing a file. Reconcile only important, actionable facts into the owning task: status, deadline, waiting-on, next step. A date-conditioned commitment becomes a `when` loop. A `channels:` line under `feeds/` is something you chose to follow (`demiurge connections feed list`): its file names only the fields that changed, so read the item itself live with `use` before acting. When it is your own work for a role, such as a review on your draft, follow that role skill's "When a review comes in on your draft" now.
 <!-- personal -->
    A durable, non-urgent fact gets a dated line on the task with a `morning:` tag.
 <!-- /personal -->
