@@ -1,7 +1,7 @@
 ---
 name: {prefix}recall
 description: Look things up in the vault, and talk with people and other intellects
-version: 3.1.0
+version: 3.2.0
 metadata:
   runtime:
     tags: [memory, vault]
@@ -34,13 +34,13 @@ A request about a person, project, task, past decision or dated fact that the se
 What you can do is what the tools in this session and the `live` rows of the registry table in `{agent_dir}/Channels.md` allow: never a plan, a proposal, a hub that describes a setup, or what another intellect has.
 
 <!-- personal -->
-{human_name}'s Google accounts and Canvas, once connected in Demiurge, are reached with the `use` tool (`use { connection: "google:<account>", action, input }`, or `canvas:<school host>`); `demiurge guide google` and `demiurge guide canvas` list the actions.
+{human_name}'s Google accounts, Canvas and banks, once connected in Demiurge, are reached with the `use` tool (`use { connection: "google:<account>", action, input }`, `canvas:<school host>` or `plaid:<bank>`); `demiurge guide google`, `demiurge guide canvas` and `demiurge guide plaid` list the actions.
 <!-- /personal -->
 <!-- enterprise -->
 {human_name}'s Google accounts, once connected in Demiurge, are reached with the `use` tool (`use { connection: "google:<account>", action, input }`); `demiurge guide google` lists the actions.
 <!-- /enterprise -->
 <!-- personal -->
-What they sync is kept read-only under `$AGENT_HOME/channels/<account>/` and `$AGENT_HOME/channels/<school host>/`: read those first and call `use` for what is not there.
+What they sync is kept read-only under `$AGENT_HOME/channels/<account>/`, `$AGENT_HOME/channels/<school host>/` and `$AGENT_HOME/channels/<bank>/` (`accounts.md` for balances, `transactions/YYYY-MM.md` for spending): read those first and call `use` for what is not there. A bank connection only reads; nothing you do can move money, and balances and purchases are told to no one but {human_name}.
 <!-- /personal -->
 <!-- enterprise -->
 What they sync is kept read-only under `$AGENT_HOME/channels/<account>/`: read those first and call `use` for what is not there.
