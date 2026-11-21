@@ -1387,7 +1387,8 @@ def cmd_task(args):
                 raise ValueError("task new needs a title")
             if not args.source:
                 goals.guard(args.config, args.goal, "")
-                raise ValueError("task new needs --source")
+                raise ValueError('task new needs --source: brain task new "<title>" --source "<their words>" --delivers "<what they will get>" '
+                                 '[--next "<what is done, where its files are, what remains>"] [--handoff] (--handoff takes no value)')
             if args.clear or args.title is not None or args.reviewed is not None:
                 raise ValueError("--clear, --title and --reviewed go with task T-nnn set")
             if args.from_ is not None and not args.from_.strip():
@@ -2720,6 +2721,9 @@ def main(argv=None):
     if argv[:1] == ["task"] and argv[2:3] == ["view"] and {"-h", "--help"} & set(argv):
         print(f"brain task {argv[1]} view" + VIEW_HELP)
         return
+    after = argv[argv.index("--handoff") + 1:][:1] if argv[:1] == ["task"] and "--handoff" in argv else []
+    if after and not after[0].startswith("-"):
+        ap.error("--handoff takes no value; what is done and what remains goes in --next \"…\"")
     a = ap.parse_args(argv)
     # Inside double quotes the shell expands "$3,450" to ",450" before brain sees it; refuse rather than save a lost amount.
     for value in vars(a).values():

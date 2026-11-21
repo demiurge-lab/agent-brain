@@ -156,6 +156,14 @@ def test_task_new_refuses_set_only_flags(vault, capsys, flag):
     assert snapshot(vault) == before
 
 
+def test_text_after_handoff_points_to_next(vault, capsys):
+    before = snapshot(vault)
+    with pytest.raises(SystemExit):
+        cli(vault, capsys, "new", "Sweep", "--handoff", "checked 40 of 132, state in scratch")
+    assert "--next" in capsys.readouterr().err
+    assert snapshot(vault) == before
+
+
 def test_word_limit_boundaries(vault, capsys):
     cli(vault, capsys, "T-001", "set", "--ask", "word " * 16, "--why", "word " * 40)
     task = entry(Config.load(vault))[0]
