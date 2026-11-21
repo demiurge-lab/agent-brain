@@ -227,6 +227,25 @@ def test_a_topic_named_twice_is_marked_instead_of_copied(owner):
     assert [path.name for path in owner.vault_path.glob("*hio*")] == ["Ohio move.md"]
 
 
+def test_mark_makes_a_hub_a_matter_with_its_id(owner, capsys):
+    fm.write(owner.vault_path / "Golf.md", {"kind": "hub"}, "# Golf\n")
+    cli.main(["matters", "--vault", str(owner.vault_path), "--mark", "golf", "--json"])
+    printed = json.loads(capsys.readouterr().out)
+    data = fm.read(owner.vault_path / "Golf.md")[0]
+    assert printed == {"source": "Golf.md", "id": data["matter_id"]} and data["matter"] is True
+    assert "owner_made" not in data
+    with pytest.raises(SystemExit):
+        cli.main(["matters", "--vault", str(owner.vault_path), "--mark", "Nowhere"])
+
+
+@pytest.mark.parametrize("now", ["Ada has booked the flights", "x" * 121])
+def test_a_now_that_names_the_owner_or_runs_long_is_not_kept(owner, monkeypatch, now):
+    monkeypatch.setenv("BRAIN_HUMAN_NAME", "Ada Lovelace")
+    talk(Config.load(owner.vault_path), "Booked", [{"name": "Lisbon trip", "now": now}])
+    body = fm.read(owner.vault_path / "Lisbon trip.md")[1]
+    assert "**Now:**" not in body and "- **Last:** 2026-11-11 · Booked" in body
+
+
 def test_the_owner_makes_a_topic_a_matter(owner, capsys):
     fm.write(owner.vault_path / "Golf.md", {"kind": "hub"}, "# Golf\n")
     source, how = matters.open_(owner, "golf", TODAY)

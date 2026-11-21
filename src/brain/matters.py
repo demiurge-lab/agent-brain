@@ -326,6 +326,17 @@ def _create(vault, name: str, *, opened: date | None = None, owner_made: bool = 
     return path.relative_to(vault.root).as_posix()
 
 
+def mark(config, name: str) -> str:
+    """Make the hub titled `name` a matter, with its id, and return its path. Caller holds the vault lock."""
+    from .vault import Vault
+    vault = Vault(config.vault_path)
+    source = find(vault, name, follow=False) or _unmarked_hub_titled(vault, name)
+    if source is None:
+        raise ValueError(f"no hub named {name!r}")
+    _mark(config, source)
+    return source
+
+
 def open_(config, name: str, today: date, what: str | None = None) -> tuple[str, str]:
     """Return (source, "opened" | "revived" | "kept") for the owner's request: a faded matter comes back, a live one keeps
     its body. Caller holds the vault lock."""
@@ -508,7 +519,7 @@ def record(config, vault, today: date, about: list[dict], headline: str, *, sess
         kept = state(fm.read(config.vault_path / source)[1], today)["soon"]
         if soon and kept and today.isoformat() <= kept["date"] < soon["date"]:
             soon = None   # the sooner thing stays next
-        write(config, source, today, now=entry.get("now") or None, last=filed or headline,
+        write(config, source, today, now=_now_unless_report(config, entry.get("now")), last=filed or headline,
               soon=(soon["date"], soon["text"]) if soon else None, drop=("aside",))
         first = first or source
     loose_tasks = _conversation_tasks(config, session)
@@ -524,6 +535,17 @@ def record(config, vault, today: date, about: list[dict], headline: str, *, sess
     _save_sightings({key: value for key, value in seen.items()
                      if any(day >= cutoff for day in (value["dates"] if isinstance(value, dict) else value))})
     return first
+
+
+NOW_LONGEST = 120
+
+
+def _now_unless_report(config, now: str | None) -> str | None:
+    named = config.human_name != type(config).__dataclass_fields__["human_name"].default
+    first = config.human_name.split()[0] if named and config.human_name.split() else ""
+    if not now or len(now) > NOW_LONGEST or (first and re.search(rf"\b{re.escape(first)}\b", now, re.I)):
+        return None
+    return now
 
 
 def task_moved(config, task, today: date, what: str) -> None:

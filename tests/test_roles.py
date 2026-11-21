@@ -70,6 +70,59 @@ def test_template_problems_are_said_not_thrown():
     assert any("solves_the_ask is every role's own" in p for p in problems)
 
 
+MANDATE = """mandate:
+  outcome: Every to-do in the weekly plan is done, owned, or has a reason it isn't.
+  manager: sam
+  covers: [web, api]
+  sources:
+    plan: drive:acme/weekly-plan
+    repo: github:acme
+    tracker: linear:acme
+  may:
+    tracker: [create, edit, link, cancel]
+  limits:
+    proposals: 3
+"""
+
+
+def test_a_mandate_is_given_with_the_engine_defaults_for_unset_limits():
+    role, problems = roles.parse(roles.shipped_text("engineering"), "X")
+    assert problems == [] and role.mandate == {}
+    text = roles.shipped_text("engineering").replace("\nproduces:", "\n" + MANDATE.rstrip("\n") + "\nproduces:", 1)
+    role, problems = roles.parse(text, "X", roles._known_sources())
+    assert problems == []
+    assert role.mandate["sources"]["plan"] == ["drive:acme/weekly-plan"]
+    assert role.mandate["may"] == {"tracker": ["create", "edit", "link", "cancel"]}
+    assert role.mandate["limits"] == {"proposals": 3, "waiting": 3, "inferred": 1}
+
+
+def test_a_mandate_never_grants_a_delete_or_a_change_to_a_source_it_does_not_name():
+    bad = (MANDATE.replace("[create, edit, link, cancel]", "[create, delete]")
+           .replace("  may:\n", "  may:\n    chat: [comment]\n")
+           .replace("    plan: drive:acme/weekly-plan", "    plan: [drive:acme/a, drive:acme/b]")
+           .replace("    repo: github:acme", "    repo: \"github:\"")
+           .replace("  manager: sam\n", ""))
+    text = roles.shipped_text("engineering").replace("\nproduces:", "\n" + bad.rstrip("\n") + "\nproduces:", 1)
+    role, problems = roles.parse(text, "X", roles._known_sources())
+    assert role is None
+    assert any("mandate.may.tracker lists undoable actions" in p for p in problems)
+    assert any("names no chat source" in p for p in problems)
+    assert any("a role has one plan" in p for p in problems)
+    assert any("mandate.manager must be" in p for p in problems)
+    assert any("mandate.sources.repo is a connection" in p for p in problems)
+
+
+def test_show_says_the_mandate(org, capsys):
+    root, _ = org
+    path = root / "Roles/Engineering/Role.md"
+    path.write_text(path.read_text().replace("\nproduces:", "\n" + MANDATE.rstrip("\n") + "\nproduces:", 1))
+    capsys.readouterr()
+    run(root, "roles", "show", "Engineering")
+    out = capsys.readouterr().out
+    assert "manager sam" in out and "tracker: linear:acme (may: create, edit, link, cancel)" in out
+    assert "limits: proposals 3, waiting 3, inferred 1" in out
+
+
 def test_every_role_reviews_whether_the_ask_is_solved(org):
     root, _ = org
     lenses = [entry["lens"] for entry in roles.load(Config.load(root), "Engineering").lenses]

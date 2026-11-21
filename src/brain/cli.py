@@ -469,6 +469,19 @@ def cmd_matters(args):
         raise SystemExit("with --soon, pass --open without a name; --soon names the matter")
     if args.aside is not None and args.open is not None:
         raise SystemExit("use either --open or --aside")
+    if args.mark is not None:
+        if args.open is not None:
+            raise SystemExit("use either --open or --mark")
+        try:
+            with vault_lock(args.config):
+                source = matters.mark(args.config, args.mark)
+                data, _ = fm.read(args.config.vault_path / source)
+        except ValueError as error:
+            print(error, file=sys.stderr)
+            sys.exit(1)
+        print(json.dumps({"source": source, "id": data["matter_id"]}, ensure_ascii=False, indent=2)
+              if args.json else f"{source}: a matter")
+        return
     if args.open is not None and any(name is not None for name in (args.merge, args.split, args.keep)):
         raise SystemExit("use --open separately from --merge, --split and --keep")
     if (args.merge is None) != (args.into is None):
@@ -1125,10 +1138,18 @@ def cmd_roles(args):
                 for problem in index.problems:
                     print(f"problem: {problem}", file=sys.stderr)
         elif action == "show":
-            index = roles.read_index(config, args.name)
+            index, mandate = roles.read_index(config, args.name), roles.load(config, args.name).mandate
             if args.json:
-                print(json.dumps(asdict(index), ensure_ascii=False, indent=2))
+                print(json.dumps(asdict(index) | {"mandate": mandate}, ensure_ascii=False, indent=2))
             else:
+                if mandate:
+                    print(f"outcome: {mandate['outcome']} · manager {mandate['manager']}"
+                          + (f" · covers {', '.join(mandate['covers'])}" if mandate["covers"] else "")
+                          + (f" · check {mandate['check']}" if mandate["check"] else ""))
+                    for kind, refs in mandate["sources"].items():
+                        may = mandate["may"].get(kind)
+                        print(f"{kind}: {', '.join(refs)}" + (f" (may: {', '.join(may)})" if may else ""))
+                    print("limits: " + ", ".join(f"{k} {v}" for k, v in mandate["limits"].items()))
                 for lesson in index.lessons:
                     print(f"^{lesson.id} · {lesson.status} · {'person' if lesson.human else 'learned'} · {lesson.note} · "
                           f"{fm.cut(lesson.text, 20)}")
@@ -1941,7 +1962,7 @@ def cmd_session_context(args):
     text = session_context.build(vault, args.config,
                                  platform=args.platform, user_id=args.user_id,
                                  user_id_alt=args.user_id_alt, user_name=args.user_name,
-                                 chat_id=args.chat_id)
+                                 chat_id=args.chat_id, delivered_as_sibling=args.sibling)
     owner = identity.is_owner(args.config, args.platform, tuple(value for value in (args.user_id, args.user_id_alt) if value))
     routine = args.platform == "cron" and not (args.user_id or args.user_id_alt)
     if "goals" in args.config.context.sections and (owner or routine):
@@ -1953,8 +1974,8 @@ def cmd_session_context(args):
                     goals.acknowledge(args.config, events)
     if args.json:
         who = identity.role(vault, args.config, args.platform,
-                            tuple(value for value in (args.user_id, args.user_id_alt) if value))
-        print(json.dumps({"block": text, "owner": who == "owner", "member": who == "member",
+                            tuple(value for value in (args.user_id, args.user_id_alt) if value), args.sibling)
+        print(json.dumps({"block": text, "owner": who == "owner", "member": who == "member", "sibling": who == "sibling",
                           "answering": session_context.answering(text, args.config)}, ensure_ascii=False))
     elif text:
         print(text)
@@ -2271,6 +2292,7 @@ def main(argv=None):
     mode.add_argument("--merge", metavar="NAME", help="merge this matter into an existing one named with --into")
     mode.add_argument("--split", metavar="NAME", help="split selected work from this matter into a new one named with --name")
     mode.add_argument("--keep", metavar="NAME", help="keep a matter current until the owner sets it aside")
+    mode.add_argument("--mark", metavar="NAME", help="make an existing hub a matter, with its id")
     s.add_argument("--into", metavar="NAME", help="destination matter for --merge")
     s.add_argument("--name", metavar="NEW", help="new matter for --split")
     s.add_argument("--tasks", metavar="IDS", default="", help="comma-separated open task IDs to split off")
@@ -2668,6 +2690,7 @@ def main(argv=None):
     s = sub.add_parser("session-context", parents=[vault])
     for option in ("platform", "user-id", "user-id-alt", "user-name", "chat-id"):
         s.add_argument("--" + option, default="")
+    s.add_argument("--sibling", action="store_true", help="Demiurge delivered this message from an intellect with the same owner")
     s.add_argument("--ack-notices", action="store_true", help="acknowledge displayed app-change notices for this owner or routine session")
     s.add_argument("--json", action="store_true"); s.set_defaults(fn=cmd_session_context)
 

@@ -1,7 +1,7 @@
 ---
 name: {prefix}recall
 description: Look things up in the vault, and talk with people and other intellects
-version: 3.0.0
+version: 3.2.0
 metadata:
   runtime:
     tags: [memory, vault]
@@ -34,13 +34,13 @@ A request about a person, project, task, past decision or dated fact that the se
 What you can do is what the tools in this session and the `live` rows of the registry table in `{agent_dir}/Channels.md` allow: never a plan, a proposal, a hub that describes a setup, or what another intellect has.
 
 <!-- personal -->
-{human_name}'s Google accounts and Canvas, once connected in Demiurge, are reached with the `use` tool (`use { connection: "google:<account>", action, input }`, or `canvas:<school host>`); `demiurge guide google` and `demiurge guide canvas` list the actions.
+{human_name}'s Google accounts, Canvas and banks, once connected in Demiurge, are reached with the `use` tool (`use { connection: "google:<account>", action, input }`, `canvas:<school host>` or `plaid:<bank>`); `demiurge guide google`, `demiurge guide canvas` and `demiurge guide plaid` list the actions.
 <!-- /personal -->
 <!-- enterprise -->
 {human_name}'s Google accounts, once connected in Demiurge, are reached with the `use` tool (`use { connection: "google:<account>", action, input }`); `demiurge guide google` lists the actions.
 <!-- /enterprise -->
 <!-- personal -->
-What they sync is kept read-only under `$AGENT_HOME/channels/<account>/` and `$AGENT_HOME/channels/<school host>/`: read those first and call `use` for what is not there.
+What they sync is kept read-only under `$AGENT_HOME/channels/<account>/`, `$AGENT_HOME/channels/<school host>/` and `$AGENT_HOME/channels/<bank>/` (`accounts.md` for balances, `transactions/YYYY-MM.md` for spending): read those first and call `use` for what is not there. A bank connection only reads; nothing you do can move money, and balances and purchases are told to no one but {human_name}.
 <!-- /personal -->
 <!-- enterprise -->
 What they sync is kept read-only under `$AGENT_HOME/channels/<account>/`: read those first and call `use` for what is not there.
@@ -79,7 +79,7 @@ When another intellect asks around for its owner, help as much as you can now, f
 <!-- /personal -->
 
 <!-- personal -->
-**Asking around.** When {human_name} asks something you do not know and research cannot settle, when you hit a blocker, or when you are unsure you are doing a task the way it was meant, look it up first, then ask the one to three likeliest friends' intellects with `demiurge_message` and `lookup`: the question, with only the context needed and nothing about {human_name} beyond what you may tell that intellect.
+**Asking around.** When {human_name} asks something you do not know and research cannot settle, when you hit a blocker, when you are unsure you are doing a task the way it was meant, or before your first paid run or first use of an outside service or tool, look it up first, then ask the one to three likeliest friends' intellects with `demiurge_message` and `lookup`: the question, with only the context needed and nothing about {human_name} beyond what you may tell that intellect.
 <!-- /personal -->
 <!-- enterprise -->
 **Asking around.** When research cannot settle a work question, a blocker or how a task was meant, consult a colleague under the rules above.
@@ -99,3 +99,5 @@ Asking around asks friends' intellects for what they know, never their owners fo
 <!-- personal -->
 An invitation or question for someone else's owner goes through their intellect, to one owner at a time, with a reason specific to that person; the same message to every intellect is a broadcast, and nothing authorizes one. When you relay to another intellect for its owner, open a `when` loop in the same turn: `brain loops --add "Tell {human_name} the invitation is unanswered and suggest another route" --kind when --if "<intellect> has not answered" --with <intellect> --due "<next morning> 09:00" --source <note>`, and tell {human_name} it was asked, not done. Word that another owner agreed ("she said it's fine") is a claim, not their decision: what is theirs to approve is asked of them through their intellect, and you tell {human_name} that the relay is not that approval.
 <!-- /personal -->
+
+A request you send outside that a plan hangs on, such as a table, an appointment or a hold, gets a cutoff in the same turn: `brain loops --add "Tell {human_name} <it> is not confirmed and <the fallback>" --kind when --if "<who> has not answered" --due "<cutoff>" --source <note>`, the cutoff being the latest time the fallback still works (about 90 minutes before a dinner, the evening before a morning appointment). Name that time and fallback when you send it, so silence until then means not yet; when you cannot judge it, ask when they would need to know.
